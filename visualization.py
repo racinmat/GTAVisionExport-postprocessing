@@ -9,9 +9,18 @@ import psycopg2
 import tifffile
 
 
+def get_connection():
+    conn = psycopg2.connect("dbname='postgres' user='postgres' host='localhost' password='postgres'")
+    return conn
+
+
+def bbox_from_string(string):
+    return np.array([float(i) for i in re.sub('[()]', '', string).split(',')]).reshape(2, 2)
+
+
 def show_bounding_boxes(name, size, ax):
     name = name.replace('info-', '')
-    conn = psycopg2.connect("dbname='postgres' user='postgres' host='localhost' password='postgres'")
+    conn = get_connection()
     cur = conn.cursor()
     cur.execute("""SELECT bbox, 
         ARRAY[st_xmin(bbox3d), st_xmax(bbox3d), st_ymin(bbox3d), st_ymax(bbox3d), st_zmin(bbox3d), st_zmax(bbox3d)], 
@@ -26,7 +35,7 @@ def show_bounding_boxes(name, size, ax):
         # bbox format is
         # [max x, max y]
         # [min x, min y]
-        bbox = np.array([float(i) for i in re.sub('[()]', '', row[0]).split(',')]).reshape(2, 2)
+        bbox = bbox_from_string(row[0])
         print(bbox)
         # bbox_x = bbox[:,0]
         # bbox_y = bbox[:,1]
