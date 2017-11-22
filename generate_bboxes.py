@@ -1,3 +1,4 @@
+import json
 import postgresql as pg
 from PIL import Image
 from PIL import ImageDraw
@@ -242,7 +243,15 @@ def process_detections(base_data_dir, detections):
 
 
 def process(pixel_path, base_data_dir, session):
-    conn = pg.open("pq://sim-group:XXXXXX@database.ngvlab.org/sim_annotations")
+    with open('config.json', 'r', encoding='utf-8') as file:
+        credentials = json.load(file)
+    db_user = credentials['db_user']
+    db_name = credentials['db_name']
+    db_password = credentials['db_password']
+    db_host = credentials['db_host']
+    db_port = credentials['db_port']
+    # db = postgresql.open('pq://user:password@host:port/database')
+    conn = pg.open("pq://{}:{}@{}:{}/{}".format(db_user, db_password, db_host, db_port, db_name))
     print("Query Images.....")
     prep_stmt = conn.query(
         "SELECT snapshot_id, detection_id, runguid::text, imagepath, view_matrix, proj_matrix, handle, pos::bytea, rot::bytea, bbox,"
