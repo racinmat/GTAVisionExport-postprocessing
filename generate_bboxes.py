@@ -242,7 +242,7 @@ def process_detections(base_data_dir, detections):
     return (result, output_cars)
 
 
-def process(pixel_path, base_data_dir, session):
+def get_conn():
     with open('config.json', 'r', encoding='utf-8') as file:
         credentials = json.load(file)
     db_user = credentials['db_user']
@@ -252,6 +252,11 @@ def process(pixel_path, base_data_dir, session):
     db_port = credentials['db_port']
     # db = postgresql.open('pq://user:password@host:port/database')
     conn = pg.open("pq://{}:{}@{}:{}/{}".format(db_user, db_password, db_host, db_port, db_name))
+    return conn
+
+
+def process(pixel_path, base_data_dir, session):
+    conn = get_conn()
     print("Query Images.....")
     prep_stmt = conn.query(
         "SELECT snapshot_id, detection_id, runguid::text, imagepath, view_matrix, proj_matrix, handle, pos::bytea, rot::bytea, bbox,"
@@ -290,16 +295,18 @@ def process(pixel_path, base_data_dir, session):
     pool.shutdown(wait=True)
     pbar.finish()
 
-    conn = pg.open("pq://sim-group:XXXXXXX@database.ngvlab.org/sim_annotations")
+    conn = get_conn()
     conn.query("UPDATE snapshots set processed=false where snapshot_id=$1", last_id)
     conn.close()
     # print(results)
 
     return results
 
+    # original db
+    # conn = pg.open("pq://sim-group:XXXXXXX@database.ngvlab.org/sim_annotations")
 
 def upload(results, pixel_path: Path):
-    conn = pg.open("pq://sim-group:XXXXXXX@database.ngvlab.org/sim_annotations")
+    conn = get_conn()
     update_query = conn.prepare("UPDATE detections SET best_bbox=$1 WHERE detection_id = $2")
     done_query = conn.prepare("UPDATE snapshots set processed=true where snapshot_id=$1")
     #pbar2 = ProgressBar()
