@@ -96,9 +96,9 @@ def ids_to_greyscale(arr):
 
 def main():
     files = [
-        'info-2017-11-14--17-48-28',
-        'info-2017-11-14--17-48-32',
-        'info-2017-11-14--17-48-34',
+        # 'info-2017-11-14--17-48-28',
+        # 'info-2017-11-14--17-48-32',
+        # 'info-2017-11-14--17-48-34',
         # 'info-2017-11-14--12-06-33',
         # 'info-2017-11-14--12-03-12',
         # 'info-2017-11-14--12-03-15',
@@ -108,40 +108,44 @@ def main():
         # 'info-2017-11-14--17-48-43',
         # 'info-2017-11-14--17-48-44',
         # 'info-2017-11-14--17-48-47',
+        'info-2017-11-19--23-21-08',
+        'info-2017-11-19--23-20-45',
+        'info-2017-11-19--23-20-49'
     ]
     ImageFile.LOAD_TRUNCATED_IMAGES = True
     for name in files:
         im = Image.open(os.path.join(in_directory, name + '.tiff'))
         size = (im.size[1], im.size[0])
 
-        # fig = plt.figure()
-        # plt.imshow(im)
-        # show_bounding_boxes(name, size, plt.gca())
+        fig = plt.figure()
+        plt.imshow(im)
+        show_bounding_boxes(name, size, plt.gca())
+        plt.savefig(os.path.join(out_directory, 'bboxes-' + name + '.jpg'))
 
-        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
-        plt.tight_layout()
-
-        plt.axis('off')
-        im.seek(0)
-        ax1.imshow(im)
-        # ax2.set_title('f')
-        ax2.imshow(ids_to_greyscale(load_stencil_ids(name)), cmap='gray')
-        ax3.set_title('ids')
-        # ax3.imshow(load_stencil_ids(name), cmap='gray')
-        ax3.imshow(ids_to_greyscale(load_stencil_ids(name)), cmap='plasma')
-        ax4.set_title('depth')
-        ax4.imshow(load_depth(name), cmap='gray')
-        show_bounding_boxes(name, size, ax1)
-        show_bounding_boxes(name, size, ax3)
-        plt.axis('off')
-        # plt.draw()
-        plt.show()
+        # fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+        # plt.tight_layout()
+        #
+        # plt.axis('off')
+        # im.seek(0)
+        # ax1.imshow(im)
+        # # ax2.set_title('f')
+        # ax2.imshow(ids_to_greyscale(load_stencil_ids(name)), cmap='gray')
+        # ax3.set_title('ids')
+        # # ax3.imshow(load_stencil_ids(name), cmap='gray')
+        # ax3.imshow(ids_to_greyscale(load_stencil_ids(name)), cmap='plasma')
+        # ax4.set_title('depth')
+        # ax4.imshow(load_depth(name), cmap='gray')
+        # show_bounding_boxes(name, size, ax1)
+        # show_bounding_boxes(name, size, ax3)
+        # plt.axis('off')
+        # # plt.draw()
+        # plt.show()
 
     plt.show()
 
 depths = {}
 stencils = {}
 in_directory = './../output'
-out_directory = './'
+out_directory = './img'
 if __name__ == '__main__':
     main()
