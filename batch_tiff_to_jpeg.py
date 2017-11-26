@@ -21,7 +21,7 @@ def tiff_to_jpg(in_directory, out_directory, base_name, name, frame):
 
 
 if __name__ == '__main__':
-    workers = 4
+    workers = 10
     in_directory = 'D:\\GTAV_extraction_output'
     # in_directory = 'D:\\projekty\\GTA-V-extractors\\output'
     out_directory = 'D:\\GTAV_extraction_output\\rgb-jpeg'
