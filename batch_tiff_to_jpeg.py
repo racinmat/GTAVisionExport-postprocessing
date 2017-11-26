@@ -13,11 +13,15 @@ def tiff_to_jpg(in_directory, out_directory, base_name, name, frame):
     if os.path.exists(outfile):
         return
 
-    im = Image.open(os.path.join(in_directory, name))
-    im.seek(frame)
-    im = im.convert(mode="RGB")
-    print("Generating jpeg for {}".format(name))
-    im.save(outfile)
+    try:
+        im = Image.open(os.path.join(in_directory, name))
+        im.seek(frame)
+        im = im.convert(mode="RGB")
+        print("Generating jpeg for {}".format(name))
+        im.save(outfile)
+    except OSError:
+        print("Skipping invalid file {}".format(name))
+        return
 
 
 if __name__ == '__main__':
@@ -31,7 +35,7 @@ if __name__ == '__main__':
         0
     ]
 
-    Parallel(n_jobs=workers)(delayed(tiff_to_jpg)
+    Parallel(n_jobs=workers, backend='threading')(delayed(tiff_to_jpg)
                              (in_directory, out_directory, get_base_name(name), name, frame) for frame in frames
                              for name in glob.glob(os.path.join(in_directory, pattern)))
 
