@@ -1,6 +1,7 @@
 from itertools import groupby
 
 import numpy as np
+from progressbar import ProgressBar, Percentage, Bar, Counter
 
 from GTAVisionExport_postprocessing.visualization import *
 
@@ -21,10 +22,16 @@ def main():
                     AND handle IN (SELECT handle
                       FROM detections GROUP BY handle HAVING count(*) > 1)
                     ORDER BY handle, detection_id""")
-    rows = cur.fetchall()
+    # rows = cur.fetchall()
     # handle is like object ID, yay
     objects = {}
-    for i, row in enumerate(rows):
+
+    print("going to process db rows")
+    pbar = ProgressBar(widgets=[Percentage(), ' ', Bar(), ' ', Counter()], maxval=cur.rowcount)
+    pbar.start()
+    for i, row in enumerate(cur):
+        pbar.update(i + 1)
+        print('')
         detection_id = row[0]
         type = row[1]
         type_class = row[2]
@@ -50,6 +57,8 @@ def main():
             'position': tuple(position),
         }
         objects[handle]['snapshots'].append(snapshot)
+    pbar.finish()
+
     moving_objects = {i: obj for i, obj in objects.items() if has_different_positions(obj)}
     print("{} objects, {} of them moving, {} of them staying".format(len(objects), len(moving_objects),
                                                                      len(objects) - len(moving_objects)))
