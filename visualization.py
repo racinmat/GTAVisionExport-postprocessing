@@ -1,4 +1,6 @@
 import os
+from configparser import ConfigParser
+
 import numpy as np
 import re
 from PIL import Image, ImageFile
@@ -10,7 +12,9 @@ import tifffile
 
 
 def get_connection():
-    conn = psycopg2.connect("dbname='postgres' user='postgres' host='localhost' password='postgres'")
+    CONFIG = ConfigParser()
+    CONFIG.read("gta-postprocessing.ini")
+    conn = psycopg2.connect(CONFIG["Postgres"]["db"])
     return conn
 
 
