@@ -2,7 +2,7 @@ from itertools import groupby
 
 import numpy as np
 from progressbar import ProgressBar, Percentage, Bar, Counter
-
+import sys
 from GTAVisionExport_postprocessing.visualization import *
 
 
@@ -15,23 +15,30 @@ def main():
     conn = get_connection()
     cur = conn.cursor()
     # gets all cars appearing at least twice
+    print("going to get detections from database")
+
     cur.execute("""SELECT detection_id, type, class, bbox, imagepath, snapshots.snapshot_id, handle, ARRAY[st_x(pos), st_y(pos), st_z(pos)], created
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE NOT bbox @> POINT '(Infinity, Infinity)'
                     AND handle IN (SELECT handle
                       FROM detections GROUP BY handle HAVING count(*) > 1)
-                    ORDER BY handle, detection_id""")
+                    ORDER BY handle, detection_id
+                    """)
     # rows = cur.fetchall()
     # handle is like object ID, yay
     objects = {}
 
-    print("going to process db rows")
-    pbar = ProgressBar(widgets=[Percentage(), ' ', Bar(), ' ', Counter()], maxval=cur.rowcount)
-    pbar.start()
+    print("going to process db rows, total: {}".format(cur.rowcount))
+    # pbar = ProgressBar(widgets=[Percentage(), ' ', Bar(), ' ', Counter()], maxval=cur.rowcount, fd=os.fdopen(sys.stdout.fileno(), 'w', 1))
+    # pbar.start()
     for i, row in enumerate(cur):
-        pbar.update(i + 1)
-        print('')
+        print(i)
+        # pbar.update(i + 1)
+        # # sys.stdout.write('\n')
+        # sys.stdout.write('')
+        # sys.stdout.flush()
+        # print('')
         detection_id = row[0]
         type = row[1]
         type_class = row[2]
@@ -57,7 +64,7 @@ def main():
             'position': tuple(position),
         }
         objects[handle]['snapshots'].append(snapshot)
-    pbar.finish()
+    # pbar.finish()
 
     moving_objects = {i: obj for i, obj in objects.items() if has_different_positions(obj)}
     print("{} objects, {} of them moving, {} of them staying".format(len(objects), len(moving_objects),
