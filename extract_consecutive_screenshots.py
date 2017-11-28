@@ -9,6 +9,7 @@ import sys
 from GTAVisionExport_postprocessing.visualization import *
 import datetime
 from math import inf
+import pickle
 
 
 def has_different_positions(obj):
@@ -81,16 +82,25 @@ def analyze_run(run_id):
         objects[handle]['min_snapshot_id'] = min(objects[handle]['min_snapshot_id'], snapshot_id)
     # pbar.finish()
 
-    moving_objects = {i: obj for i, obj in objects.items() if has_different_positions(obj)}
+    # done building objects, pickling them
+    with open('run_{}_pickle.rick'.format(run_id), 'wb+') as file:
+        pickle.dump(objects, file)
+
+    # done pickling them, analyzing and plotting them
+
+    # for every handle, it tells True or False, whether this has nonstrop consecutive snapshots
+    consecutives = {i: len(o['snapshots']) == (o['max_snapshot_id'] - o['min_snapshot_id']) + 1 for i, o in objects.items()}
+    moving_objects = {i: obj for i, obj in objects.items() if has_different_positions(obj) and consecutives[i]}
     print("{} objects, {} of them moving, {} of them staying".format(len(objects), len(moving_objects),
                                                                      len(objects) - len(moving_objects)))
     consecutive_frames = [len(obj['snapshots']) for i, obj in moving_objects.items()]
     values_range = range(min(consecutive_frames), max(consecutive_frames) + 1)
-    plt.figure()
+    plt.figure(figsize=(30, 30))
     plt.xticks(values_range)
     plt.hist(consecutive_frames, bins=values_range, edgecolor='black')
     plt.draw()
     plt.savefig('run_{}_consecutive_frames_hist_{}.png'.format(run_id, datetime.datetime.now().timestamp()))
+    plt.close()
 
 
 def get_runs():
