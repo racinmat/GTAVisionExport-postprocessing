@@ -2,7 +2,12 @@ from itertools import groupby
 import os
 import matplotlib
 # http://matplotlib.org/faq/howto_faq.html#matplotlib-in-a-web-application-server
-if 'DISPLAY' not in os.environ:
+havedisplay = "DISPLAY" in os.environ
+if not havedisplay:
+    exitval = os.system('python -c "import matplotlib.pyplot as plt; plt.figure()"')
+    havedisplay = (exitval == 0)
+
+if not havedisplay:
     matplotlib.use('Agg')
 
 import numpy as np
