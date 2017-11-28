@@ -1,7 +1,9 @@
 from itertools import groupby
+import os
 import matplotlib
 # http://matplotlib.org/faq/howto_faq.html#matplotlib-in-a-web-application-server
-matplotlib.use('Agg')
+if 'DISPLAY' not in os.environ:
+    matplotlib.use('Agg')
 
 import numpy as np
 from progressbar import ProgressBar, Percentage, Bar, Counter

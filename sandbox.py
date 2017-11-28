@@ -5,7 +5,7 @@ from visualization import get_connection
 
 if __name__ == '__main__':
     conn = get_connection()
-    run_id = 17
-    objects = load_objects(run_id)
+    run_id = 11
+    cars = load_objects(run_id)
+    car1 = cars[cars.keys()[0]]
     pass
-

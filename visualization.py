@@ -18,6 +18,10 @@ def get_connection():
     return conn
 
 
+def get_gta_image_jpg_dir():
+    return '/datagrid/personal/racinmat/GTA-jpg'
+
+
 def bbox_from_string(string):
     return np.array([float(i) for i in re.sub('[()]', '', string).split(',')]).reshape(2, 2)
 
