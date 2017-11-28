@@ -8,6 +8,7 @@ from progressbar import ProgressBar, Percentage, Bar, Counter
 import sys
 from GTAVisionExport_postprocessing.visualization import *
 import datetime
+from math import inf
 
 
 def has_different_positions(obj):
@@ -15,20 +16,24 @@ def has_different_positions(obj):
     return len(set([i['position'] for i in obj['snapshots']])) > 1
 
 
-def main():
+def analyze_run(run_id):
     conn = get_connection()
     cur = conn.cursor()
     # gets all cars appearing at least twice
-    print("going to get detections from database")
+    print("going to get detections from database for run {}".format(run_id))
 
-    cur.execute("""SELECT detection_id, type, class, bbox, imagepath, snapshots.snapshot_id, handle, ARRAY[st_x(pos), st_y(pos), st_z(pos)], created
+    cur.execute("""SELECT detection_id, type, class, bbox, imagepath, snapshots.snapshot_id, handle, 
+                    ARRAY[st_x(pos), st_y(pos), st_z(pos)], created
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
-                    WHERE NOT bbox @> POINT '(Infinity, Infinity)'
+                    WHERE
+                    snapshots.run_id = {0} 
+                    NOT bbox @> POINT '(Infinity, Infinity)'
                     AND handle IN (SELECT handle
                       FROM detections GROUP BY handle HAVING count(*) > 1)
                     ORDER BY handle, detection_id
-                    """)
+                    LIMIT 10000
+                    """.format(run_id))
     # rows = cur.fetchall()
     # handle is like object ID, yay
     objects = {}
@@ -56,7 +61,9 @@ def main():
                 'type': type,
                 'type_class': type_class,
                 'handle': handle,
-                'snapshots': []
+                'snapshots': [],
+                'max_snapshot_id': - inf,
+                'min_snapshot_id': inf,
             }
             objects[handle] = props
 
@@ -68,6 +75,8 @@ def main():
             'position': tuple(position),
         }
         objects[handle]['snapshots'].append(snapshot)
+        objects[handle]['max_snapshot_id'] = max(objects[handle]['max_snapshot_id'], snapshot_id)
+        objects[handle]['min_snapshot_id'] = min(objects[handle]['min_snapshot_id'], snapshot_id)
     # pbar.finish()
 
     moving_objects = {i: obj for i, obj in objects.items() if has_different_positions(obj)}
@@ -79,8 +88,24 @@ def main():
     plt.xticks(values_range)
     plt.hist(consecutive_frames, bins=values_range, edgecolor='black')
     plt.draw()
-    plt.savefig('consecutive_frames_hist_{}.png'.format(datetime.datetime.now().timestamp()))
+    plt.savefig('run_{}_consecutive_frames_hist_{}.png'.format(run_id, datetime.datetime.now().timestamp()))
 
+
+def get_runs():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""SELECT DISTINCT run_id
+                  FROM runs
+                    """)
+    return [x[0] for x in cur.fetchall()]
+
+
+def main():
+    run_ids = get_runs()
+    print(run_ids)
+    for run_id in run_ids:
+        analyze_run(run_id)
 
 if __name__ == '__main__':
     main()
