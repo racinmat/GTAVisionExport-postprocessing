@@ -17,8 +17,24 @@ def has_different_positions(obj):
     return len(set([i['position'] for i in obj['snapshots']])) > 1
 
 
+def get_pickle_name(run_id):
+    return os.path.join('runs', 'run_{}_pickle.rick'.format(run_id))
+
+
+def save_objects(run_id, objects):
+    data_file = get_pickle_name(run_id)
+    with open(data_file, 'wb+') as file:
+        pickle.dump(objects, file)
+
+
+def load_objects(run_id):
+    data_file = get_pickle_name(run_id)
+    with open(data_file, 'rb') as file:
+        return pickle.load(file)
+
+
 def analyze_run(run_id):
-    data_file = os.path.join('runs', 'run_{}_pickle.rick'.format(run_id))
+    data_file = get_pickle_name(run_id)
 
     if os.path.exists(data_file):
         return
