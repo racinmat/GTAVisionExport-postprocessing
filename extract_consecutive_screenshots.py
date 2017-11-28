@@ -28,17 +28,19 @@ def analyze_run(run_id):
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE
                     snapshots.run_id = {0} 
-                    NOT bbox @> POINT '(Infinity, Infinity)'
+                    AND NOT bbox @> POINT '(Infinity, Infinity)'
                     AND handle IN (SELECT handle
                       FROM detections GROUP BY handle HAVING count(*) > 1)
                     ORDER BY handle, detection_id
-                    LIMIT 10000
                     """.format(run_id))
     # rows = cur.fetchall()
     # handle is like object ID, yay
     objects = {}
 
-    # print("going to process db rows, total: {}".format(cur.rowcount))
+    print("going to process db rows, total: {}".format(cur.rowcount))
+    if cur.rowcount == 0:
+        return
+
     # pbar = ProgressBar(widgets=[Percentage(), ' ', Bar(), ' ', Counter()], maxval=cur.rowcount, fd=os.fdopen(sys.stdout.fileno(), 'w', 1))
     # pbar.start()
     for i, row in enumerate(cur):
