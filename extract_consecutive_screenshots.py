@@ -18,6 +18,11 @@ def has_different_positions(obj):
 
 
 def analyze_run(run_id):
+    data_file = os.path.join('runs', 'run_{}_pickle.rick'.format(run_id))
+
+    if os.path.exists(data_file):
+        return
+
     conn = get_connection()
     cur = conn.cursor()
     # gets all cars appearing at least twice
@@ -83,7 +88,7 @@ def analyze_run(run_id):
     # pbar.finish()
 
     # done building objects, pickling them
-    with open('run_{}_pickle.rick'.format(run_id), 'wb+') as file:
+    with open(data_file, 'wb+') as file:
         pickle.dump(objects, file)
 
     # done pickling them, analyzing and plotting them
