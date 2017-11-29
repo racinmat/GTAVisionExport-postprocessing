@@ -40,11 +40,39 @@ def load_objects(run_id):
         return pickle.load(file)
 
 
+def load_snapshot_data(snapshot_id):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""SELECT snapshot_id, proj_matrix, view_matrix, run_id, imagepath, timestamp, timeofday, camera_pos, camera_direction
+                  FROM snapshots
+                    WHERE
+                    snapshots.snapshot_id = {0} 
+                    """.format(snapshot_id))
+    row = cur.fetchone()
+
+    return row
+
+
+# def load_detection_data(detection_id):
+#     conn = get_connection()
+#     cur = conn.cursor()
+#
+#     cur.execute("""SELECT snapshot_id, detection_id, handle, pos, bbox, bbox3d
+#                   FROM detections
+#                     WHERE
+#                     snapshots.snapshot_id = {0}
+#                     """.format(detection_id))
+#     row = cur.fetchone()
+#
+#     return row
+
+
 def analyze_run(run_id):
     data_file = get_pickle_name(run_id)
 
-    if os.path.exists(data_file):
-        return
+    # if os.path.exists(data_file):
+    #     return
 
     conn = get_connection()
     cur = conn.cursor()
@@ -52,7 +80,7 @@ def analyze_run(run_id):
     print("going to get detections from database for run {}".format(run_id))
 
     cur.execute("""SELECT detection_id, type, class, bbox, imagepath, snapshots.snapshot_id, handle, 
-                    ARRAY[st_x(pos), st_y(pos), st_z(pos)], created
+                    ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE
@@ -79,14 +107,14 @@ def analyze_run(run_id):
         # pbar.fd.write('')
         # pbar.fd.flush()
         # print('')
-        detection_id = row[0]
-        type = row[1]
-        type_class = row[2]
-        bbox = bbox_from_string(row[3])
-        image = row[4]
-        snapshot_id = row[5]
-        handle = row[6]
-        position = row[7]
+        detection_id = row['detection_id']
+        type = row['type']
+        type_class = row['class']
+        bbox = bbox_from_string(row['bbox'])
+        image = row['imagepath']
+        snapshot_id = row['snapshot_id']
+        handle = row['handle']
+        position = row['pos']
         if handle not in objects:
             props = {
                 'type': type,
