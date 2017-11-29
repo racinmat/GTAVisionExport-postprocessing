@@ -44,14 +44,26 @@ def load_snapshot_data(snapshot_id):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""SELECT snapshot_id, proj_matrix, view_matrix, run_id, imagepath, timestamp, timeofday, camera_pos, camera_direction
+    cur.execute("""SELECT snapshot_id, proj_matrix, view_matrix, run_id, imagepath, timestamp, timeofday, camera_pos, 
+                    camera_direction
                   FROM snapshots
                     WHERE
                     snapshots.snapshot_id = {0} 
                     """.format(snapshot_id))
     row = cur.fetchone()
 
-    return row
+    snapshot = {
+        'snapshot_id': row['snapshot_id'],
+        'proj_matrix': row['proj_matrix'],
+        'view_matrix': row['view_matrix'],
+        'run_id': row['run_id'],
+        'image': row['image'],
+        'timestamp': row['timestamp'],
+        'timeofday': row['timeofday'],
+        'camera_pos': row['camera_pos'],
+        'camera_direction': row['camera_direction'],
+    }
+    return snapshot
 
 
 # def load_detection_data(detection_id):
