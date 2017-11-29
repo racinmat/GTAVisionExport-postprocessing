@@ -54,10 +54,10 @@ def load_snapshot_data(snapshot_id):
 
     snapshot = {
         'snapshot_id': row['snapshot_id'],
-        'proj_matrix': row['proj_matrix'],
-        'view_matrix': row['view_matrix'],
+        'proj_matrix': np.array(row['proj_matrix']),
+        'view_matrix': np.array(row['view_matrix']),
         'run_id': row['run_id'],
-        'image': row['image'],
+        'image': row['imagepath'],
         'timestamp': row['timestamp'],
         'timeofday': row['timeofday'],
         'camera_pos': row['camera_pos'],
