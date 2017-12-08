@@ -2,3 +2,5 @@
 URI=pq://<user>:<password>@<server>/<database>
 [Postgres]
 db=dbname='<database>' user='<user>' host='<server>' password='<password>'
+[Images]
+Tiff=<path>

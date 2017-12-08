@@ -107,3 +107,4 @@ venv.bak/
 
 /config.json
 /gta-postprocessing.ini
+/gta-postprocessing.local.ini
