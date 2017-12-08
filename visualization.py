@@ -11,7 +11,6 @@ import tifffile
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import connection
 
-
 def get_connection():
     """
     :rtype: connection
@@ -165,7 +164,9 @@ def main():
 
 depths = {}
 stencils = {}
-in_directory = 'D:\\GTAV_extraction_output'
+CONFIG = ConfigParser()
+CONFIG.read("gta-postprocessing.ini")
+in_directory = CONFIG["Images"]["Tiff"]
 out_directory = './img'
 conn = None
 if __name__ == '__main__':
