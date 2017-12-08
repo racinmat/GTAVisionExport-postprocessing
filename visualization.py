@@ -1,4 +1,5 @@
 import os
+from configparser import ConfigParser
 import numpy as np
 import re
 from PIL import Image, ImageFile
@@ -7,11 +8,24 @@ from matplotlib import cm, patches
 import matplotlib.pyplot as plt
 import psycopg2
 import tifffile
+from psycopg2.extras import DictCursor
+from psycopg2.extensions import connection
 
 
 def get_connection():
-    conn = psycopg2.connect("dbname='postgres' user='postgres' host='localhost' password='postgres'")
+    """
+    :rtype: connection
+    """
+    global conn
+    if conn is None:
+        CONFIG = ConfigParser()
+        CONFIG.read("gta-postprocessing.ini")
+        conn = psycopg2.connect(CONFIG["Postgres"]["db"], cursor_factory=DictCursor)
     return conn
+
+
+def get_gta_image_jpg_dir():
+    return '/datagrid/personal/racinmat/GTA-jpg'
 
 
 def bbox_from_string(string):
@@ -23,28 +37,27 @@ def show_bounding_boxes(name, size, ax):
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""SELECT bbox, 
-        ARRAY[st_xmin(bbox3d), st_xmax(bbox3d), st_ymin(bbox3d), st_ymax(bbox3d), st_zmin(bbox3d), st_zmax(bbox3d)], 
+        ARRAY[st_xmin(bbox3d), st_xmax(bbox3d), st_ymin(bbox3d), st_ymax(bbox3d), st_zmin(bbox3d), st_zmax(bbox3d)] as bbox3d, 
         view_matrix, proj_matrix
         FROM detections
         JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
         WHERE imagepath = '{}'
         AND NOT bbox @> POINT '(Infinity, Infinity)'""".format(name))
-    rows = cur.fetchall()
     print(size)
-    for row in rows:
+    for row in cur:
         # bbox format is
         # [max x, max y]
         # [min x, min y]
-        bbox = bbox_from_string(row[0])
+        bbox = bbox_from_string(row['bbox'])
         print(bbox)
         # bbox_x = bbox[:,0]
         # bbox_y = bbox[:,1]
         bbox[:, 0] *= size[1]
         bbox[:, 1] *= size[0]
         print(bbox)
-        bbox3d = np.array(row[1])
-        view_matrix = np.array(row[2])
-        proj_matrix = np.array(row[3])
+        bbox3d = np.array(row['bbox3d'])
+        view_matrix = np.array(row['view_matrix'])
+        proj_matrix = np.array(row['proj_matrix'])
 
         width, height = bbox[0, :] - bbox[1, :]
         rect = patches.Rectangle(bbox[1, :], width, height, linewidth=1, edgecolor='r', facecolor='none')
@@ -154,5 +167,6 @@ depths = {}
 stencils = {}
 in_directory = 'D:\\GTAV_extraction_output'
 out_directory = './img'
+conn = None
 if __name__ == '__main__':
     main()

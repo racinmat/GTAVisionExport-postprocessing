@@ -8,8 +8,8 @@ def get_base_name(name):
     return os.path.basename(os.path.splitext(name)[0])
 
 
-def tiff_to_jpg(in_directory, out_directory, base_name, name, frame):
-    outfile = os.path.join(out_directory, base_name) + "-{}.jpg".format(frame)
+def tiff_to_jpg(in_directory, out_directory, out_name, name, frame):
+    outfile = os.path.join(out_directory, out_name)
     if os.path.exists(outfile):
         return
 
@@ -36,10 +36,10 @@ if __name__ == '__main__':
     ]
 
     Parallel(n_jobs=workers, backend='threading')(delayed(tiff_to_jpg)
-                             (in_directory, out_directory, get_base_name(name), name, frame) for frame in frames
+                             (in_directory, out_directory, "{}-{}.jpg".format(get_base_name(name), frame), name, frame) for frame in frames
                              for name in glob.glob(os.path.join(in_directory, pattern)))
 
     # for name in glob.glob(os.path.join(in_directory, pattern)):
     #     base_name = get_base_name(name)
     #     for frame in frames:
-    #         tiff_to_jpg(in_directory, out_directory, base_name, frame)
+    #         tiff_to_jpg(in_directory, out_directory, "{}-{}.jpg".format(get_base_name(name), frame), name, frame)

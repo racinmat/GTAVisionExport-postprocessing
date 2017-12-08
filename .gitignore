@@ -106,3 +106,5 @@ venv.bak/
 .mypy_cache/
 
 /config.json
+/gta-postprocessing.ini
+/gta-postprocessing.local.ini
