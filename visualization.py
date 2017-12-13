@@ -11,7 +11,6 @@ import tifffile
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import connection
 
-
 def get_connection():
     """
     :rtype: connection
@@ -107,6 +106,15 @@ def ids_to_greyscale(arr):
     return arr * 4
 
 
+def show_bboxes(name):
+    im = Image.open(os.path.join(in_directory, name + '.tiff'))
+    size = (im.size[1], im.size[0])
+    fig = plt.figure()
+    plt.imshow(im)
+    show_bounding_boxes(name, size, plt.gca())
+    plt.savefig(os.path.join(out_directory, 'bboxes-' + name + '.jpg'))
+
+
 def main():
     files = [
         # 'info-2017-11-14--17-48-28',
@@ -121,19 +129,17 @@ def main():
         # 'info-2017-11-14--17-48-43',
         # 'info-2017-11-14--17-48-44',
         # 'info-2017-11-14--17-48-47',
-        'info-2017-11-19--23-21-08',
-        'info-2017-11-19--23-20-45',
-        'info-2017-11-19--23-20-49'
+        # 'info-2017-11-19--23-21-08',
+        # 'info-2017-11-19--23-20-45',
+        # 'info-2017-11-19--23-20-49',
+        'info-2017-11-24--18-48-25--561'
     ]
     ImageFile.LOAD_TRUNCATED_IMAGES = True
     for name in files:
         im = Image.open(os.path.join(in_directory, name + '.tiff'))
         size = (im.size[1], im.size[0])
 
-        # fig = plt.figure()
-        # plt.imshow(im)
-        # show_bounding_boxes(name, size, plt.gca())
-        # plt.savefig(os.path.join(out_directory, 'bboxes-' + name + '.jpg'))
+        # show_bboxes(name)
 
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
         plt.tight_layout()
@@ -158,7 +164,9 @@ def main():
 
 depths = {}
 stencils = {}
-in_directory = './../output'
+CONFIG = ConfigParser()
+CONFIG.read("gta-postprocessing.ini")
+in_directory = CONFIG["Images"]["Tiff"]
 out_directory = './img'
 conn = None
 if __name__ == '__main__':
