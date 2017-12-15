@@ -13,7 +13,7 @@ if not havedisplay:
 import numpy as np
 from progressbar import ProgressBar, Percentage, Bar, Counter
 import sys
-from GTAVisionExport_postprocessing.visualization import *
+from visualization import *
 import datetime
 from math import inf
 import pickle
@@ -92,7 +92,10 @@ def analyze_run(run_id):
     print("going to get detections from database for run {}".format(run_id))
 
     cur.execute("""SELECT detection_id, type, class, bbox, imagepath, snapshots.snapshot_id, handle, 
-                    ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created
+                    ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created,
+                    ARRAY[st_x(camera_pos), st_y(camera_pos), st_z(camera_pos)] as camera_pos, 
+                    ARRAY[st_x(camera_direction), st_y(camera_direction), st_z(camera_direction)] as camera_direction,
+                    view_matrix
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE
@@ -127,6 +130,9 @@ def analyze_run(run_id):
         snapshot_id = row['snapshot_id']
         handle = row['handle']
         position = row['pos']
+        cam_position = row['camera_pos']
+        cam_direction = row['camera_direction']
+        view_matrix = row['view_matrix']
         if handle not in objects:
             props = {
                 'type': type,
@@ -144,6 +150,9 @@ def analyze_run(run_id):
             'image': image,
             'snapshot_id': snapshot_id,
             'position': tuple(position),
+            'cam_position': cam_position,
+            'cam_direction': cam_direction,
+            'view_matrix': view_matrix,
         }
         objects[handle]['snapshots'].append(snapshot)
         objects[handle]['max_snapshot_id'] = max(objects[handle]['max_snapshot_id'], snapshot_id)
@@ -182,10 +191,12 @@ def get_runs():
 
 
 def main():
-    run_ids = get_runs()
-    print(run_ids)
+    # run_ids = get_runs()
+    # print(run_ids)
+    run_ids = [52]
     for run_id in run_ids:
         analyze_run(run_id)
+
 
 if __name__ == '__main__':
     main()
