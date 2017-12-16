@@ -83,8 +83,8 @@ def load_snapshot_data(snapshot_id):
 def analyze_run(run_id):
     data_file = get_pickle_name(run_id)
 
-    # if os.path.exists(data_file):
-    #     return
+    if os.path.exists(data_file):
+        return
 
     conn = get_connection()
     cur = conn.cursor()
@@ -95,7 +95,7 @@ def analyze_run(run_id):
                     ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created,
                     ARRAY[st_x(camera_pos), st_y(camera_pos), st_z(camera_pos)] as camera_pos, 
                     ARRAY[st_x(camera_direction), st_y(camera_direction), st_z(camera_direction)] as camera_direction,
-                    view_matrix
+                    view_matrix, timeofday
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE
@@ -133,6 +133,7 @@ def analyze_run(run_id):
         cam_position = row['camera_pos']
         cam_direction = row['camera_direction']
         view_matrix = row['view_matrix']
+        time_of_day = row['timeofday']
         if handle not in objects:
             props = {
                 'type': type,
@@ -153,6 +154,7 @@ def analyze_run(run_id):
             'cam_position': cam_position,
             'cam_direction': cam_direction,
             'view_matrix': view_matrix,
+            'time_of_day': time_of_day,
         }
         objects[handle]['snapshots'].append(snapshot)
         objects[handle]['max_snapshot_id'] = max(objects[handle]['max_snapshot_id'], snapshot_id)
@@ -160,9 +162,8 @@ def analyze_run(run_id):
     # pbar.finish()
 
     # done building objects, pickling them
-    with open(data_file, 'wb+') as file:
-        pickle.dump(objects, file)
-
+    save_objects(run_id, objects)
+        
     # done pickling them, analyzing and plotting them
 
     # for every handle, it tells True or False, whether this has nonstrop consecutive snapshots
