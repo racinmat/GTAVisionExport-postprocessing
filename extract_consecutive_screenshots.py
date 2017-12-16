@@ -95,7 +95,7 @@ def analyze_run(run_id):
                     ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created,
                     ARRAY[st_x(camera_pos), st_y(camera_pos), st_z(camera_pos)] as camera_pos, 
                     ARRAY[st_x(camera_direction), st_y(camera_direction), st_z(camera_direction)] as camera_direction,
-                    view_matrix, timeofday
+                    view_matrix, timeofday, timestamp
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE
@@ -133,7 +133,8 @@ def analyze_run(run_id):
         cam_position = row['camera_pos']
         cam_direction = row['camera_direction']
         view_matrix = row['view_matrix']
-        time_of_day = row['timeofday']
+        game_time = row['timeofday']
+        timestamp = row['timestamp']
         if handle not in objects:
             props = {
                 'type': type,
@@ -154,7 +155,8 @@ def analyze_run(run_id):
             'cam_position': cam_position,
             'cam_direction': cam_direction,
             'view_matrix': view_matrix,
-            'time_of_day': time_of_day,
+            'game_time': game_time,
+            'timestamp': timestamp,
         }
         objects[handle]['snapshots'].append(snapshot)
         objects[handle]['max_snapshot_id'] = max(objects[handle]['max_snapshot_id'], snapshot_id)
