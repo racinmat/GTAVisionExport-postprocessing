@@ -13,7 +13,7 @@ if not havedisplay:
 import numpy as np
 from progressbar import ProgressBar, Percentage, Bar, Counter
 import sys
-from GTAVisionExport_postprocessing.visualization import *
+from visualization import *
 import datetime
 from math import inf
 import pickle
@@ -83,8 +83,8 @@ def load_snapshot_data(snapshot_id):
 def analyze_run(run_id):
     data_file = get_pickle_name(run_id)
 
-    # if os.path.exists(data_file):
-    #     return
+    if os.path.exists(data_file):
+        return
 
     conn = get_connection()
     cur = conn.cursor()
@@ -92,7 +92,10 @@ def analyze_run(run_id):
     print("going to get detections from database for run {}".format(run_id))
 
     cur.execute("""SELECT detection_id, type, class, bbox, imagepath, snapshots.snapshot_id, handle, 
-                    ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created
+                    ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos, created,
+                    ARRAY[st_x(camera_pos), st_y(camera_pos), st_z(camera_pos)] as camera_pos, 
+                    ARRAY[st_x(camera_direction), st_y(camera_direction), st_z(camera_direction)] as camera_direction,
+                    view_matrix, timeofday, timestamp
                   FROM detections
                     JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
                     WHERE
@@ -127,6 +130,11 @@ def analyze_run(run_id):
         snapshot_id = row['snapshot_id']
         handle = row['handle']
         position = row['pos']
+        cam_position = row['camera_pos']
+        cam_direction = row['camera_direction']
+        view_matrix = row['view_matrix']
+        game_time = row['timeofday']
+        timestamp = row['timestamp']
         if handle not in objects:
             props = {
                 'type': type,
@@ -144,6 +152,11 @@ def analyze_run(run_id):
             'image': image,
             'snapshot_id': snapshot_id,
             'position': tuple(position),
+            'cam_position': cam_position,
+            'cam_direction': cam_direction,
+            'view_matrix': view_matrix,
+            'game_time': game_time,
+            'timestamp': timestamp,
         }
         objects[handle]['snapshots'].append(snapshot)
         objects[handle]['max_snapshot_id'] = max(objects[handle]['max_snapshot_id'], snapshot_id)
@@ -151,9 +164,8 @@ def analyze_run(run_id):
     # pbar.finish()
 
     # done building objects, pickling them
-    with open(data_file, 'wb+') as file:
-        pickle.dump(objects, file)
-
+    save_objects(run_id, objects)
+        
     # done pickling them, analyzing and plotting them
 
     # for every handle, it tells True or False, whether this has nonstrop consecutive snapshots
@@ -182,10 +194,12 @@ def get_runs():
 
 
 def main():
-    run_ids = get_runs()
-    print(run_ids)
+    # run_ids = get_runs()
+    # print(run_ids)
+    run_ids = [52]
     for run_id in run_ids:
         analyze_run(run_id)
+
 
 if __name__ == '__main__':
     main()
