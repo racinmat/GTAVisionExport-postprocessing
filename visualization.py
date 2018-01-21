@@ -19,7 +19,7 @@ def get_connection():
     global conn
     if conn is None:
         CONFIG = ConfigParser()
-        CONFIG.read("gta-postprocessing.ini")
+        CONFIG.read(ini_file)
         conn = psycopg2.connect(CONFIG["Postgres"]["db"], cursor_factory=DictCursor)
     return conn
 
@@ -43,18 +43,18 @@ def show_bounding_boxes(name, size, ax):
         JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
         WHERE imagepath = '{}'
         AND NOT bbox @> POINT '(Infinity, Infinity)'""".format(name))
-    print(size)
+    # print(size)
     for row in cur:
         # bbox format is
         # [max x, max y]
         # [min x, min y]
         bbox = bbox_from_string(row['bbox'])
-        print(bbox)
+        # print(bbox)
         # bbox_x = bbox[:,0]
         # bbox_y = bbox[:,1]
         bbox[:, 0] *= size[1]
         bbox[:, 1] *= size[0]
-        print(bbox)
+        # print(bbox)
         bbox3d = np.array(row['bbox3d'])
         view_matrix = np.array(row['view_matrix'])
         proj_matrix = np.array(row['proj_matrix'])
@@ -181,8 +181,9 @@ multi_page = True
 
 depths = {}
 stencils = {}
+ini_file = "gta-postprocessing.ini"
 CONFIG = ConfigParser()
-CONFIG.read("gta-postprocessing.ini")
+CONFIG.read(ini_file)
 # in_directory = CONFIG["Images"]["Tiff"]
 in_directory = './images'
 out_directory = './img'

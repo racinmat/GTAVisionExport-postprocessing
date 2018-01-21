@@ -199,8 +199,9 @@ def process_detections(base_data_dir, detections):
     # detections = list(detections)
     # print('\n' + str(len(detections)) + '\n')
     # sem.acquire()
-    imgpath = Path(base_data_dir) / Path(detections[0]['runguid']) / Path(detections[0]['imagepath'], mode='r')
-    if not imgpath.exists():
+    # imgpath = Path(base_data_dir) / Path(detections[0]['runguid']) / Path(detections[0]['imagepath'], mode='r')
+    imgpath = path.join(base_data_dir, 'info-{}.tiff'.format(detections[0]['imagepath']))
+    if not path.exists(imgpath):
         print(imgpath)
         return (None, None)
     tiffimg = TIFF.open(str(imgpath))
@@ -281,7 +282,7 @@ def process(pixel_path, base_data_dir, session):
         "ST_MakePoint(ST_XMin(bbox3d), ST_YMin(bbox3d), ST_ZMin(bbox3d))::bytea as bbox3d_min,"+\
         "ST_MakePoint(ST_XMax(bbox3d), ST_YMax(bbox3d), ST_ZMax(bbox3d))::bytea as bbox3d_max FROM detections "+\
         "JOIN snapshots USING (snapshot_id) JOIN runs USING (run_id) JOIN sessions USING(session_id) "+\
-        "WHERE session_id={} and processed=false "+\
+        "WHERE session_id={} "+\
         "AND imagepath IN ({}) "+\
         "order by snapshot_id desc").format(session, ', '.join(['\'{}\''.format(s) for s in sample_names])))
 
