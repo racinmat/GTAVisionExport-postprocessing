@@ -11,6 +11,7 @@ import tifffile
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import connection
 
+
 def get_connection():
     """
     :rtype: connection
@@ -18,7 +19,7 @@ def get_connection():
     global conn
     if conn is None:
         CONFIG = ConfigParser()
-        CONFIG.read("gta-postprocessing.ini")
+        CONFIG.read(ini_file)
         conn = psycopg2.connect(CONFIG["Postgres"]["db"], cursor_factory=DictCursor)
     return conn
 
@@ -42,18 +43,18 @@ def show_bounding_boxes(name, size, ax):
         JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
         WHERE imagepath = '{}'
         AND NOT bbox @> POINT '(Infinity, Infinity)'""".format(name))
-    print(size)
+    # print(size)
     for row in cur:
         # bbox format is
         # [max x, max y]
         # [min x, min y]
         bbox = bbox_from_string(row['bbox'])
-        print(bbox)
+        # print(bbox)
         # bbox_x = bbox[:,0]
         # bbox_y = bbox[:,1]
         bbox[:, 0] *= size[1]
         bbox[:, 1] *= size[0]
-        print(bbox)
+        # print(bbox)
         bbox3d = np.array(row['bbox3d'])
         view_matrix = np.array(row['view_matrix'])
         proj_matrix = np.array(row['proj_matrix'])
@@ -79,14 +80,24 @@ def show_bounding_boxes(name, size, ax):
 
 def load_depth(name):
     if name not in depths:
-        tiff_depth = tifffile.imread(os.path.join(in_directory, name + '-depth.tiff'))
+        if multi_page:
+            tiff_depth = Image.open(os.path.join(in_directory, name + '.tiff'))
+            tiff_depth.seek(2)
+            tiff_depth = np.array(tiff_depth) * 256
+        else:
+            tiff_depth = tifffile.imread(os.path.join(in_directory, name + '-depth.tiff'))
         depths[name] = tiff_depth
     return depths[name]
 
 
 def load_stencil(name):
     if name not in stencils:
-        tiff_stencil = tifffile.imread(os.path.join(in_directory, name + '-stencil.tiff'))
+        if multi_page:
+            tiff_stencil = Image.open(os.path.join(in_directory, name + '.tiff'))
+            tiff_stencil.seek(1)
+            tiff_stencil = np.array(tiff_stencil)
+        else:
+            tiff_stencil = tifffile.imread(os.path.join(in_directory, name + '-stencil.tiff'))
         stencils[name] = tiff_stencil
     return stencils[name]
 
@@ -132,7 +143,9 @@ def main():
         # 'info-2017-11-19--23-21-08',
         # 'info-2017-11-19--23-20-45',
         # 'info-2017-11-19--23-20-49',
-        'info-2017-11-24--18-48-25--561'
+        # 'info-2017-11-24--18-48-25--561'
+        'single-res'
+        # 'single'
     ]
     ImageFile.LOAD_TRUNCATED_IMAGES = True
     for name in files:
@@ -162,12 +175,20 @@ def main():
 
     plt.show()
 
+
+multi_page = True
+# multi_page = False
+
 depths = {}
 stencils = {}
+ini_file = "gta-postprocessing.ini"
 CONFIG = ConfigParser()
-CONFIG.read("gta-postprocessing.ini")
-in_directory = CONFIG["Images"]["Tiff"]
+CONFIG.read(ini_file)
+# in_directory = CONFIG["Images"]["Tiff"]
+in_directory = './images'
 out_directory = './img'
 conn = None
 if __name__ == '__main__':
     main()
+
+# online combining to multipage tiff https://www.coolutils.com/Online/TIFF-Combine/

@@ -1,0 +1,1 @@
+docker run -v "%cd%/images":/opt/project -it acleancoder/imagemagick-full bash
