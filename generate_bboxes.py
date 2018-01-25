@@ -113,7 +113,7 @@ def to_world_space(image, depth, proj, view, w, h):
     return np.squeeze(world_space)
 
 
-def paint_pixels(world_space, world, box: Tuple[np.array], val):
+def paint_pixels(world_space, world, box: Tuple[np.array, np.array], val):
     model_space = lin.inv(world) @ world_space[:, :, :, np.newaxis]
     model_space = np.squeeze(model_space)
     min = np.hstack((box[0], [0]))
@@ -152,11 +152,11 @@ def draw_bboxes(image, depth, proj, view, boxes: List[MultiPoint], xforms: List[
     draw = ImageDraw.Draw(pilimage)
     for x, y in [pos for sublist in boxes_image for pos in sublist]:
         if x > 1920 or x < 0 or y > 1080 or y < 0:
-            continue;
+            continue
         draw.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(0, 255, 0, 200))
     for x, y in positions_image:
         if x > 1920 or x < 0 or y > 1080 or y < 0:
-            continue;
+            continue
         draw.ellipse([x - 4, y - 4, x + 4, y + 4], fill=(255, 0, 0, 200))
     for box in boxes_image:
         # draw.line(box[0] + box[-1], fill=(255,0,0,255), width=10)
@@ -182,7 +182,8 @@ def get_bboxes(img, detections, w=1920, h=1080):
     result = []
     for val in detections:
         a = np.where(img == val['handle'])
-        if len(a[0]) == 0: continue
+        if len(a[0]) == 0:
+            continue
         bbox = Box(((np.min(a[1]) / w, np.min(a[0]) / h), (np.max(a[1]) / w, np.max(a[0]) / h)))
         count = np.count_nonzero(a)
         normw = np.min(a[1]) - np.max(a[1])
@@ -191,8 +192,6 @@ def get_bboxes(img, detections, w=1920, h=1080):
         cov = count / npix
         result.append(BBox(val['detection_id'], bbox, cov))
     return result
-
-
 
 
 def process_detections(base_data_dir, detections):
@@ -208,7 +207,7 @@ def process_detections(base_data_dir, detections):
     img = Image.open(str(imgpath))
     w = img.width
     h = img.height
-    del img
+    # del img   # this causes segfault when running sequentially, not in parallel
     image = np.empty((h, w, 4), dtype=np.uint8)
     depth = np.empty((h, w), dtype=np.float32)
     stencil = np.empty((h, w), dtype=np.uint8)
@@ -261,7 +260,7 @@ def get_conn():
     return conn
 
 
-def process(pixel_path, base_data_dir, session):
+def process(pixel_path, base_data_dir, run):
     conn = get_conn()
     print("Query Images.....")
     # query for real extraction
@@ -277,14 +276,14 @@ def process(pixel_path, base_data_dir, session):
     sample_names = [path.splitext(path.basename(s))[0].replace('info-', '') for s in sample_names]
 
     prep_stmt = conn.query((
-        "SELECT snapshot_id, detection_id, runguid::text, imagepath, view_matrix, proj_matrix, handle, pos::bytea, rot::bytea, bbox,"+\
-        "ngv_box3dpolygon(bbox3d)::bytea as fullbox,"+\
-        "ST_MakePoint(ST_XMin(bbox3d), ST_YMin(bbox3d), ST_ZMin(bbox3d))::bytea as bbox3d_min,"+\
-        "ST_MakePoint(ST_XMax(bbox3d), ST_YMax(bbox3d), ST_ZMax(bbox3d))::bytea as bbox3d_max FROM detections "+\
-        "JOIN snapshots USING (snapshot_id) JOIN runs USING (run_id) JOIN sessions USING(session_id) "+\
-        "WHERE session_id={} "+\
-        "AND imagepath IN ({}) "+\
-        "order by snapshot_id desc").format(session, ', '.join(['\'{}\''.format(s) for s in sample_names])))
+        "SELECT snapshot_id, detection_id, runguid::text, imagepath, view_matrix, proj_matrix, handle, pos::bytea, rot::bytea, bbox,"+
+        "ngv_box3dpolygon(bbox3d)::bytea as fullbox,"+
+        "ST_MakePoint(ST_XMin(bbox3d), ST_YMin(bbox3d), ST_ZMin(bbox3d))::bytea as bbox3d_min,"+
+        "ST_MakePoint(ST_XMax(bbox3d), ST_YMax(bbox3d), ST_ZMax(bbox3d))::bytea as bbox3d_max FROM detections "+
+        "JOIN snapshots USING (snapshot_id) JOIN runs USING (run_id) "+
+        "WHERE run_id={} "+
+        "AND imagepath IN ({}) "+
+        "order by snapshot_id desc").format(run, ', '.join(['\'{}\''.format(s) for s in sample_names])))
 
     pbar = ProgressBar(max_value=len(prep_stmt)).start()
     i = 0
@@ -310,7 +309,10 @@ def process(pixel_path, base_data_dir, session):
         sem.acquire()
         detections = list(detections)
         last_id = snapshot_id
-        #on_done(snapshot_id, process_detections(base_data_dir, detections))
+
+        # serial
+        # on_done(snapshot_id, process_detections(base_data_dir, detections))
+        # parallel
         result = pool.submit(process_detections, base_data_dir, detections)
         result.add_done_callback(partial(on_done, snapshot_id))
     pool.shutdown(wait=True)
@@ -348,7 +350,7 @@ def upload(results, pixel_path: Path):
 if __name__ == "__main__":
     parser = ArgumentParser(
         description="Process a GTA session using data from the stencil buffer as well as the camera parameters")
-    parser.add_argument("--session", dest='session', required=True, type=int, help="the session to process")
+    parser.add_argument("--run", dest='run', required=True, type=int, help="the run to process")
     parser.add_argument("--dataroot", dest='dataroot', required=True, type=str, help="Location of the data")
     parser.add_argument("--pixel_path", dest="pixel_path", required=True, type=str,
                         help="Location to output pixel annotations")
@@ -360,7 +362,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     results = None
     if (args.resume is None):
-        results = process(args.pixel_path, args.dataroot, args.session)
+        results = process(args.pixel_path, args.dataroot, args.run)
         print("dumping results")
         with open('results.pkl', 'wb') as f:
             dump(results, f)
