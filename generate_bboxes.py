@@ -199,11 +199,19 @@ def process_detections(base_data_dir, detections):
     # print('\n' + str(len(detections)) + '\n')
     # sem.acquire()
     # imgpath = Path(base_data_dir) / Path(detections[0]['runguid']) / Path(detections[0]['imagepath'], mode='r')
-    imgpath = path.join(base_data_dir, 'info-{}.tiff'.format(detections[0]['imagepath']))
+    # filename = 'info-{}.tiff'
+    filename = '{}.tiff'
+    depth_filename = '{}-depth.tiff'
+    stencil_filename = '{}-stencil.tiff'
+    imgpath = path.join(base_data_dir, filename.format(detections[0]['imagepath']))
+    depth_imgpath = path.join(base_data_dir, depth_filename.format(detections[0]['imagepath']))
+    stencil_imgpath = path.join(base_data_dir, stencil_filename.format(detections[0]['imagepath']))
     if not path.exists(imgpath):
         print(imgpath)
         return (None, None)
     tiffimg = TIFF.open(str(imgpath))
+    depth_tiffimg = TIFF.open(str(depth_imgpath))
+    stencil_tiffimg = TIFF.open(str(stencil_imgpath))
     img = Image.open(str(imgpath))
     w = img.width
     h = img.height
@@ -214,10 +222,10 @@ def process_detections(base_data_dir, detections):
     TIFF.setdirectory(tiffimg, 0)
     TIFF.readencodedstrip(tiffimg, 0, image.ctypes.data, -1)
     lastdir = num_directories(tiffimg) - 1
-    TIFF.setdirectory(tiffimg, lastdir - 1)
-    TIFF.readencodedstrip(tiffimg, 0, depth.ctypes.data, -1)
-    TIFF.setdirectory(tiffimg, lastdir)
-    TIFF.readencodedstrip(tiffimg, 0, stencil.ctypes.data, -1)
+    # TIFF.setdirectory(tiffimg, lastdir - 1)
+    TIFF.readencodedstrip(depth_tiffimg, 0, depth.ctypes.data, -1)
+    # TIFF.setdirectory(tiffimg, lastdir)
+    TIFF.readencodedstrip(stencil_tiffimg, 0, stencil.ctypes.data, -1)
     affines = [create_affine(loads(x['rot']), loads(x['pos'])) for x in detections]
     bboxes_geom = [loads(x['fullbox']) for x in detections]
     bboxes = [(np.array(loads(x['bbox3d_min'])), np.array(loads(x['bbox3d_max']))) for x in detections]
@@ -327,6 +335,7 @@ def process(pixel_path, base_data_dir, run):
 
     # original db
     # conn = pg.open("pq://sim-group:XXXXXXX@database.ngvlab.org/sim_annotations")
+
 
 def upload(results, pixel_path: Path):
     conn = get_conn()
