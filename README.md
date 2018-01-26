@@ -17,4 +17,4 @@ python /datagrid/personal/racinmat/GTAVisionExport_postprocessing/generate_bboxe
 ```
 The run parameter is run_id of snapshots.
 This can not be run on Windows, because it uses libtiff library, which works only on linux. 
-It stores calculated stencils as zipped numpy array, for loading, see 
+It stores calculated stencils as zipped numpy array, for loading, see `show_driving_in_the_matrix_stencil.ipynb`.
