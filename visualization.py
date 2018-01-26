@@ -184,8 +184,8 @@ stencils = {}
 ini_file = "gta-postprocessing.ini"
 CONFIG = ConfigParser()
 CONFIG.read(ini_file)
-# in_directory = CONFIG["Images"]["Tiff"]
-in_directory = './images'
+in_directory = CONFIG["Images"]["Tiff"]
+# in_directory = './images'
 out_directory = './img'
 conn = None
 if __name__ == '__main__':
