@@ -182,12 +182,21 @@ multi_page = True
 depths = {}
 stencils = {}
 ini_file = "gta-postprocessing.ini"
-CONFIG = ConfigParser()
-CONFIG.read(ini_file)
-in_directory = CONFIG["Images"]["Tiff"]
+in_directory = None
 # in_directory = './images'
 out_directory = './img'
 conn = None
+
+
+def get_in_directory():
+    global in_directory
+    if in_directory is None:
+        CONFIG = ConfigParser()
+        CONFIG.read(ini_file)
+        in_directory = CONFIG["Images"]["Tiff"]
+    return in_directory
+
+
 if __name__ == '__main__':
     main()
 
