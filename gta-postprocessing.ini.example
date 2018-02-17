@@ -4,3 +4,4 @@ URI=pq://<user>:<password>@<server>/<database>
 db=dbname='<database>' user='<user>' host='<server>' password='<password>'
 [Images]
 Tiff=<path>
+Jpg=<path>

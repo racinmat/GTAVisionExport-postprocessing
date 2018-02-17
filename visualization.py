@@ -81,11 +81,11 @@ def show_bounding_boxes(name, size, ax):
 def load_depth(name):
     if name not in depths:
         if multi_page:
-            tiff_depth = Image.open(os.path.join(in_directory, name + '.tiff'))
+            tiff_depth = Image.open(os.path.join(get_in_directory(), name + '.tiff'))
             tiff_depth.seek(2)
             tiff_depth = np.array(tiff_depth) * 256
         else:
-            tiff_depth = tifffile.imread(os.path.join(in_directory, name + '-depth.tiff'))
+            tiff_depth = tifffile.imread(os.path.join(get_in_directory(), name + '-depth.tiff'))
         depths[name] = tiff_depth
     return depths[name]
 
@@ -93,11 +93,11 @@ def load_depth(name):
 def load_stencil(name):
     if name not in stencils:
         if multi_page:
-            tiff_stencil = Image.open(os.path.join(in_directory, name + '.tiff'))
+            tiff_stencil = Image.open(os.path.join(get_in_directory(), name + '.tiff'))
             tiff_stencil.seek(1)
             tiff_stencil = np.array(tiff_stencil)
         else:
-            tiff_stencil = tifffile.imread(os.path.join(in_directory, name + '-stencil.tiff'))
+            tiff_stencil = tifffile.imread(os.path.join(get_in_directory(), name + '-stencil.tiff'))
         stencils[name] = tiff_stencil
     return stencils[name]
 
@@ -118,7 +118,7 @@ def ids_to_greyscale(arr):
 
 
 def show_bboxes(name):
-    im = Image.open(os.path.join(in_directory, name + '.tiff'))
+    im = Image.open(os.path.join(get_in_directory(), name + '.tiff'))
     size = (im.size[1], im.size[0])
     fig = plt.figure()
     plt.imshow(im)
@@ -149,7 +149,7 @@ def main():
     ]
     ImageFile.LOAD_TRUNCATED_IMAGES = True
     for name in files:
-        im = Image.open(os.path.join(in_directory, name + '.tiff'))
+        im = Image.open(os.path.join(get_in_directory(), name + '.tiff'))
         size = (im.size[1], im.size[0])
 
         # show_bboxes(name)
@@ -183,7 +183,6 @@ depths = {}
 stencils = {}
 ini_file = "gta-postprocessing.ini"
 in_directory = None
-# in_directory = './images'
 out_directory = './img'
 conn = None
 

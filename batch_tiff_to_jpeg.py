@@ -1,5 +1,6 @@
 import glob
 import os
+from configparser import ConfigParser
 
 import progressbar
 from joblib import Parallel, delayed
@@ -31,10 +32,13 @@ def tiff_to_jpg(in_directory, out_directory, out_name, name, frame):
         return
 
 
+ini_file = "gta-postprocessing.local.ini"
+
 if __name__ == '__main__':
+    CONFIG = ConfigParser()
+    CONFIG.read(ini_file)
+    in_directory = CONFIG["Images"]["Tiff"]
     workers = 10
-    in_directory = 'D:\\GTAV_extraction_output'
-    # in_directory = 'D:\\projekty\\GTA-V-extractors\\output'
     out_directory = 'D:\\GTAV_extraction_output\\rgb-jpeg'
     # out_directory = 'D:\\projekty\\GTA-V-extractors\\output\\rgb-jpeg'
     # pattern = 'info-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9][0-9].tiff'

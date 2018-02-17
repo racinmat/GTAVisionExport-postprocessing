@@ -1,9 +1,16 @@
 import os
+from configparser import ConfigParser
 
 from PIL import Image
 
+ini_file = "gta-postprocessing.local.ini"
+
+
 if __name__ == '__main__':
-    in_directory = './../output'
+    CONFIG = ConfigParser()
+    CONFIG.read(ini_file)
+    in_directory = CONFIG["Images"]["Tiff"]
+    out_directory = './img'
     out_directory = './../Mask_RCNN/GTA-images'
     files = [
         'info-2017-11-19--23-21-03.tiff',
