@@ -10,8 +10,7 @@ if __name__ == '__main__':
     CONFIG = ConfigParser()
     CONFIG.read(ini_file)
     in_directory = CONFIG["Images"]["Tiff"]
-    out_directory = './img'
-    out_directory = './../Mask_RCNN/GTA-images'
+    out_directory = CONFIG["Images"]["Jpg"]
     files = [
         'info-2017-11-19--23-21-03.tiff',
         'info-2017-11-19--23-21-11.tiff',

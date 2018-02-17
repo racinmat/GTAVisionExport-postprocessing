@@ -38,9 +38,8 @@ if __name__ == '__main__':
     CONFIG = ConfigParser()
     CONFIG.read(ini_file)
     in_directory = CONFIG["Images"]["Tiff"]
+    out_directory = CONFIG["Images"]["Jpg"]
     workers = 10
-    out_directory = 'D:\\GTAV_extraction_output\\rgb-jpeg'
-    # out_directory = 'D:\\projekty\\GTA-V-extractors\\output\\rgb-jpeg'
     # pattern = 'info-[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9][0-9].tiff'
     pattern = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9][0-9].tiff'
     frames = [
