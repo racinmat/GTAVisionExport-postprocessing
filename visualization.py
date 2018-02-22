@@ -32,11 +32,11 @@ def bbox_from_string(string):
     return np.array([float(i) for i in re.sub('[()]', '', string).split(',')]).reshape(2, 2)
 
 
-def show_bounding_boxes(name, size, ax):
+def get_bounding_boxes(name):
     name = name.replace('info-', '')
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("""SELECT bbox, 
+    cur.execute("""SELECT bbox, ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos,
         ARRAY[st_xmin(bbox3d), st_xmax(bbox3d), st_ymin(bbox3d), st_ymax(bbox3d), st_zmin(bbox3d), st_zmax(bbox3d)] as bbox3d, 
         view_matrix, proj_matrix
         FROM detections
@@ -44,38 +44,53 @@ def show_bounding_boxes(name, size, ax):
         WHERE imagepath = '{}'
         AND NOT bbox @> POINT '(Infinity, Infinity)'""".format(name))
     # print(size)
+    results = []
     for row in cur:
+        res = dict(row)
+        res['bbox3d'] = np.array(res['bbox3d'])
+        res['view_matrix'] = np.array(res['view_matrix'])
+        res['proj_matrix'] = np.array(res['proj_matrix'])
+        res['bbox'] = bbox_from_string(res['bbox'])
+        results.append(res)
+    return results
+
+
+def show_loaded_bounding_boxes(detections, size, ax):
+    # print(size)
+    for row in detections:
         # bbox format is
         # [max x, max y]
         # [min x, min y]
-        bbox = bbox_from_string(row['bbox'])
+        bbox = np.copy(row['bbox'])
         # print(bbox)
         # bbox_x = bbox[:,0]
         # bbox_y = bbox[:,1]
         bbox[:, 0] *= size[1]
         bbox[:, 1] *= size[0]
         # print(bbox)
-        bbox3d = np.array(row['bbox3d'])
-        view_matrix = np.array(row['view_matrix'])
-        proj_matrix = np.array(row['proj_matrix'])
 
         width, height = bbox[0, :] - bbox[1, :]
         rect = patches.Rectangle(bbox[1, :], width, height, linewidth=1, edgecolor='r', facecolor='none')
 
         # Add the patch to the Axes
         ax.add_patch(rect)
+
     # print(rows)
-    bbox = np.array([1, 1, 0, 0]).reshape(2, 2)
+    # bbox = np.array([1, 1, 0, 0]).reshape(2, 2)
     # bbox_y = bbox[:,0]
     # bbox_x = bbox[:,1]
-    bbox[:, 0] *= size[0]
-    bbox[:, 1] *= size[1]
+    # bbox[:, 0] *= size[0]
+    # bbox[:, 1] *= size[1]
 
-    height, width = bbox[0, :] - bbox[1, :]
-    rect = patches.Rectangle(bbox[1, :], width, height, linewidth=3, edgecolor='y', facecolor='none')
+    # height, width = bbox[0, :] - bbox[1, :]
+    # rect = patches.Rectangle(bbox[1, :], width, height, linewidth=3, edgecolor='y', facecolor='none')
 
     # Add the patch to the Axes
-    ax.add_patch(rect)
+    # ax.add_patch(rect)
+
+def show_bounding_boxes(name, size, ax):
+    detections = get_bounding_boxes(name)
+    show_loaded_bounding_boxes(detections, size, ax)
 
 
 def load_depth(name):
