@@ -33,16 +33,20 @@ def bbox_from_string(string):
 
 
 def get_bounding_boxes(name):
+    return get_detections(name, "AND NOT bbox @> POINT '(Infinity, Infinity)'")
+
+
+def get_detections(name, additional_condition = ''):
     name = name.replace('info-', '')
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""SELECT bbox, ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos,
         ARRAY[st_xmin(bbox3d), st_xmax(bbox3d), st_ymin(bbox3d), st_ymax(bbox3d), st_zmin(bbox3d), st_zmax(bbox3d)] as bbox3d, 
-        view_matrix, proj_matrix
+        view_matrix, proj_matrix, world_matrix, type, class, handle
         FROM detections
         JOIN snapshots ON detections.snapshot_id = snapshots.snapshot_id
-        WHERE imagepath = '{}'
-        AND NOT bbox @> POINT '(Infinity, Infinity)'""".format(name))
+        WHERE imagepath = '{}' {}
+        """.format(name, additional_condition))
     # print(size)
     results = []
     for row in cur:
@@ -50,7 +54,9 @@ def get_bounding_boxes(name):
         res['bbox3d'] = np.array(res['bbox3d'])
         res['view_matrix'] = np.array(res['view_matrix'])
         res['proj_matrix'] = np.array(res['proj_matrix'])
+        res['world_matrix'] = np.array(res['world_matrix'])
         res['bbox'] = bbox_from_string(res['bbox'])
+        res['pos'] = np.array(res['pos'])
         results.append(res)
     return results
 
