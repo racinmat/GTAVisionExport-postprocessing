@@ -2,8 +2,6 @@ import pickle
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import axes3d, Axes3D
 import vtk
-from numpy import random
-
 def display_matplotlib():
     # transformation to pointcloud form
     xs = vecs_p[0, :]
@@ -69,7 +67,7 @@ def display_vtk():
     # Renderer
     renderer = vtk.vtkRenderer()
     renderer.AddActor(pointCloud.vtkActor)
-    renderer.SetBackground(.0, .0, .0)
+    renderer.SetBackground(1.0, 1.0, 1.0)
     renderer.ResetCamera()
 
     # Render Window
@@ -101,5 +99,7 @@ if __name__ == '__main__':
     colors = struct['colors']
     name = struct['name']
 
+    print(vecs_p.shape)
     # display_matplotlib()
     display_vtk()
+    # display_py_qt_graph()
