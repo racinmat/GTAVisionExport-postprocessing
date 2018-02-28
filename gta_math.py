@@ -1,13 +1,13 @@
 import numpy as np
 
 
-def pixel_to_normalized(pixel, size):
+def pixel_to_ndc(pixel, size):
     p_y, p_x = pixel
     s_y, s_x = size
-    return (- ((2 / s_y) * p_y - 1), (2 / s_x) * p_x - 1)
+    return (((- 2 / s_y) * p_y + 1), (2 / s_x) * p_x - 1)
 
 
-def normalized_to_pixel(ndc, size):
+def ndc_to_pixel(ndc, size):
     ndc_y, ndc_x = ndc
     s_y, s_x = size
     return (-(s_y / 2) * ndc_y + (s_y / 2), (s_x / 2) * ndc_x + (s_x / 2))
@@ -42,7 +42,7 @@ def points_to_homo(points, res, depth):
     for y, x in arr:
         if depth[(y, x)] <= treshold:
             continue
-        ndc = pixel_to_normalized((y, x), size)
+        ndc = pixel_to_ndc((y, x), size)
         vec = [ndc[1], -ndc[0], depth[(y, x)], 1]
         vec = np.array(vec)
         vecs[:, i] = vec
@@ -71,11 +71,15 @@ def is_rotation_matrix(R):
     return n < 1e-6
 
 
+def is_rigid(M):
+    return is_rotation_matrix(M[0:3, 0:3]) and np.linalg.norm(M[3, :] - np.array([0, 0, 0, 1], dtype=M.dtype)) < 1e-6
+
+
 def inv_rigid(M):
-    assert is_rotation_matrix(M[0:3, 0:3])
-    assert np.linalg.norm(M[3, :] - np.array([0, 0, 0, 1], dtype=R.dtype)) < 1e-6
+    # if we have rigid transformation matrix, we can calculate its inversion analytically, with bigger precision
+    assert is_rigid(M)
     Mt = np.zeros_like(M)
     Mt[0:3, 0:3] = np.transpose(M[0:3, 0:3])
-    Mt[0:3, 3] = - M[0:3, 3]
+    Mt[0:3, 3] = - Mt[0:3, 0:3] @ M[0:3, 3]
     Mt[3, 3] = 1
     return Mt
