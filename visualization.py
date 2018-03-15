@@ -125,7 +125,6 @@ def load_depth(name):
         if multi_page:
             tiff_depth = Image.open(os.path.join(get_in_directory(), name + '.tiff'))
             tiff_depth.seek(2)
-            tiff_depth = np.array(tiff_depth) * 256
         else:
             tiff_depth = tifffile.imread(os.path.join(get_in_directory(), name + '-depth.tiff'))
         depths[name] = tiff_depth
