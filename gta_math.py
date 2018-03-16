@@ -20,17 +20,21 @@ def generate_points(width, height):
     return points
 
 
-def points_to_homo(points, res, depth):
+def points_to_homo(points, res, depth, tresholding=True):
     width = res['width']
     height = res['height']
     size = (height, width)
     proj_matrix = res['proj_matrix']
-    max_depth = res['cam_far_clip']
-    # max_depth = 60 # just for testing
-    vec = proj_matrix @ np.array([[1], [1], [-max_depth], [1]])
-    # print(vec)
-    vec /= vec[3]
-    treshold = vec[2]
+
+    if tresholding:
+        max_depth = res['cam_far_clip']
+        # max_depth = 60 # just for testing
+        vec = proj_matrix @ np.array([[1], [1], [-max_depth], [1]])
+        # print(vec)
+        vec /= vec[3]
+        treshold = vec[2]
+    else:
+        treshold = - np.inf
 
     # vecs = np.zeros((4, points.shape[0]))
     vecs = np.zeros((4, len(np.where(depth[points[:, 0], points[:, 1]] > treshold)[
@@ -83,3 +87,20 @@ def inv_rigid(M):
     Mt[0:3, 3] = - Mt[0:3, 0:3] @ M[0:3, 3]
     Mt[3, 3] = 1
     return Mt
+
+
+def ndc_to_real(depth, proj_matrix):
+    width = depth.shape[1]
+    height = depth.shape[0]
+    points = generate_points(width, height)
+    params = {
+        'width': width,
+        'height': height,
+        'proj_matrix': proj_matrix,
+    }
+    vecs = points_to_homo(points, params, depth, tresholding=False)
+    vecs_p = ndc_to_view(vecs, proj_matrix)
+    new_depth = np.copy(depth)
+    for i, (y, x) in points:
+        new_depth[y, x] = vecs_p[i, 2]
+    return new_depth
