@@ -1,4 +1,5 @@
 import numpy as np
+from math import tan, atan, radians, degrees
 
 
 def pixel_to_ndc(pixel, size):
@@ -47,7 +48,7 @@ def points_to_homo(points, res, depth, tresholding=True):
         if depth[(y, x)] <= treshold:
             continue
         ndc = pixel_to_ndc((y, x), size)
-        vec = [ndc[1], -ndc[0], depth[(y, x)], 1]
+        vec = [ndc[1], ndc[0], depth[(y, x)], 1]
         vec = np.array(vec)
         vecs[:, i] = vec
         i += 1
@@ -99,8 +100,30 @@ def ndc_to_real(depth, proj_matrix):
         'proj_matrix': proj_matrix,
     }
     vecs = points_to_homo(points, params, depth, tresholding=False)
-    vecs_p = ndc_to_view(vecs, proj_matrix)
+    vecs_p = ndc_to_view(vecs, proj_matrix).T
     new_depth = np.copy(depth)
-    for i, (y, x) in points:
+    for i, (y, x) in enumerate(points):
         new_depth[y, x] = vecs_p[i, 2]
     return new_depth
+
+
+def construct_proj_matrix(H=1080, W=1914, fov=50.0, near_clip=1.5):
+    # for z coord
+    f = near_clip  # the near clip, but f in the book
+    n = 10003.815  # the far clip, rounded value of median, after very weird values were discarded
+    # x coord
+    r = W * n * tan(radians(fov) / 2) / H
+    l = -r
+    # y coord
+    t = n * tan(radians(fov) / 2)
+    b = -t
+    # x00 = 2*n/(r-l)
+    x00 = H / (tan(radians(fov) / 2) * W)
+    # x11 = 2*n/(t-b)
+    x11 = 1 / tan(radians(fov) / 2)
+    return np.array([
+        [x00, 0, -(r + l) / (r - l), 0],
+        [0, x11, -(t + b) / (t - b), 0],
+        [0, 0, -f / (f - n), -f * n / (f - n)],
+        [0, 0, -1, 0],
+    ])
