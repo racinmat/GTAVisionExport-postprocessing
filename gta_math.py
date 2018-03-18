@@ -1,6 +1,9 @@
 import numpy as np
 from math import tan, atan, radians, degrees
 
+THRESHOLD = 1000
+MAXIMUM = np.iinfo(np.uint16).max
+
 
 def pixel_to_ndc(pixel, size):
     p_y, p_x = pixel
@@ -40,8 +43,8 @@ def points_to_homo(points, res, depth, tresholding=True):
     # vecs = np.zeros((4, points.shape[0]))
     vecs = np.zeros((4, len(np.where(depth[points[:, 0], points[:, 1]] > treshold)[
                                 0])))  # this one is used when ommiting 0 depth (point behind the far clip)
-    print("vecs.shape")
-    print(vecs.shape)
+    # print("vecs.shape")
+    # print(vecs.shape)
     i = 0
     arr = points
     for y, x in arr:
@@ -127,3 +130,29 @@ def construct_proj_matrix(H=1080, W=1914, fov=50.0, near_clip=1.5):
         [0, 0, -f / (f - n), -f * n / (f - n)],
         [0, 0, -1, 0],
     ])
+
+
+def depth_crop_and_positive(depth):
+    depth = np.copy(depth)
+    # first we reverse values, so they are in positive values
+    depth *= -1
+    # then we treshold the far clip so when we scale to integer range
+    depth[depth > THRESHOLD] = THRESHOLD
+    return depth
+
+
+def depth_to_integer_range(depth):
+    depth = np.copy(depth)
+    # then we rescale to as big value as file format allows us
+    ratio = MAXIMUM / THRESHOLD
+    depth *= ratio
+    return depth.astype(np.int32)
+
+
+def depth_from_integer_range(depth):
+    depth = np.copy(depth)
+    depth = depth.astype(np.float32)
+    # then we rescale to integer32
+    ratio = THRESHOLD / MAXIMUM
+    depth *= ratio
+    return depth
