@@ -108,34 +108,19 @@ def ndc_to_real(depth, proj_matrix):
     width = depth.shape[1]
     height = depth.shape[0]
 
-    start = time.time()
-    end = time.time()
-    print('time to generate_points: ', end - start)
-
     params = {
         'width': width,
         'height': height,
         'proj_matrix': proj_matrix,
     }
 
-    start = time.time()
     vecs, transformed_points = points_to_homo(params, depth, tresholding=False)
     vec_y, vec_x = transformed_points
-    end = time.time()
-    print('time to points_to_homo: ', end - start)
 
-    start = time.time()
     vecs_p = ndc_to_view(vecs, proj_matrix).T
-    end = time.time()
-    print('time to ndc_to_view: ', end - start)
 
-    start = time.time()
     new_depth = np.copy(depth)
     new_depth[vec_y, vec_x] = vecs_p[:, 2]
-    # for i, (y, x) in enumerate(points):
-    #     new_depth[y, x] = vecs_p[i, 2]
-    end = time.time()
-    print('time to extract to new depth: ', end - start)
 
     return new_depth
 
