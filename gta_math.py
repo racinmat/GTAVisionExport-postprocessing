@@ -1,5 +1,6 @@
 import numpy as np
 from math import tan, atan, radians, degrees
+import time
 
 THRESHOLD = 1000
 MAXIMUM = np.iinfo(np.uint16).max
@@ -9,6 +10,18 @@ def pixel_to_ndc(pixel, size):
     p_y, p_x = pixel
     s_y, s_x = size
     return (((- 2 / s_y) * p_y + 1), (2 / s_x) * p_x - 1)
+
+
+def pixels_to_ndcs(pixels, size):
+    # vectorized version, of above function
+    # pixels are in shape <pixels, 2>
+    pixels = np.copy(pixels)
+    p_y = pixels[:, 0]
+    p_x = pixels[:, 1]
+    s_y, s_x = size
+    pixels[:, 0] = (-2 / s_y) * p_y + 1
+    pixels[:, 1] = (2 / s_x) * p_x - 1
+    return pixels
 
 
 def ndc_to_pixel(ndc, size):
@@ -23,8 +36,28 @@ def generate_points(width, height):
     points = np.transpose([np.tile(y_range, len(x_range)), np.repeat(x_range, len(y_range))])
     return points
 
+# time to generate_points:  0.017998456954956055
+# time to prepare treshold:  0.043000221252441406
+# time to transfer all pixels to homo:  15.504000663757324
+# time to points_to_homo:  15.547000885009766
+# time to ndc_to_view:  0.06600069999694824
+# time to extract to new depth:  1.988011121749878
+# time to convert coords:  17.630000114440918
+# depth calculated
+
+# time to generate_points:  0.01800084114074707
+# time to prepare treshold:  0.044997215270996094
+# time to transfer all points to ndcs:  0.03500080108642578
+# time to transfer all pixels to homo:  7.98600959777832
+# time to points_to_homo:  8.066999673843384
+# time to ndc_to_view:  0.06299757957458496
+# time to extract to new depth:  2.01800274848938
+# time to convert coords:  10.177000761032104
+# depth calculated
 
 def points_to_homo(points, res, depth, tresholding=True):
+    start = time.time()
+
     width = res['width']
     height = res['height']
     size = (height, width)
@@ -36,25 +69,41 @@ def points_to_homo(points, res, depth, tresholding=True):
         vec = proj_matrix @ np.array([[1], [1], [-max_depth], [1]])
         # print(vec)
         vec /= vec[3]
-        treshold = vec[2]
+        threshold = vec[2]
     else:
-        treshold = - np.inf
+        threshold = - np.inf
 
     # vecs = np.zeros((4, points.shape[0]))
-    vecs = np.zeros((4, len(np.where(depth[points[:, 0], points[:, 1]] > treshold)[
+    vecs = np.zeros((4, len(np.where(depth[points[:, 0], points[:, 1]] > threshold)[
                                 0])))  # this one is used when ommiting 0 depth (point behind the far clip)
-    # print("vecs.shape")
-    # print(vecs.shape)
+
+    valid_points = np.array(np.where(depth > threshold))
+
+    end = time.time()
+    print('time to prepare treshold: ', end - start)
+    start = time.time()
+
+    ndcs = pixels_to_ndcs(valid_points, size)
+
+    end = time.time()
+    print('time to transfer all points to ndcs: ', end - start)
+    start = time.time()
+
     i = 0
+    vecs[3, :] = 1  # last, homogenous coordinate
     arr = points
-    for y, x in arr:
-        if depth[(y, x)] <= treshold:
+    vecs[0:2, :] = valid_points
+    vecs[2, :] = depth[valid_points]
+    for j, (y, x) in enumerate(arr):
+        if depth[(y, x)] <= threshold:
             continue
-        ndc = pixel_to_ndc((y, x), size)
-        vec = [ndc[1], ndc[0], depth[(y, x)], 1]
-        vec = np.array(vec)
-        vecs[:, i] = vec
+        # vec = [ndcs[j, 1], ndcs[j, 0], depth[(y, x)], 1]
+        # vec = np.array(vec)
+        vecs[:, i] = np.array([ndcs[j, 1], ndcs[j, 0], depth[(y, x)], 1])
         i += 1
+
+    end = time.time()
+    print('time to transfer all pixels to homo: ', end - start)
 
     return vecs
 
@@ -96,17 +145,35 @@ def inv_rigid(M):
 def ndc_to_real(depth, proj_matrix):
     width = depth.shape[1]
     height = depth.shape[0]
+
+    start = time.time()
     points = generate_points(width, height)
+    end = time.time()
+    print('time to generate_points: ', end - start)
+
     params = {
         'width': width,
         'height': height,
         'proj_matrix': proj_matrix,
     }
+
+    start = time.time()
     vecs = points_to_homo(points, params, depth, tresholding=False)
+    end = time.time()
+    print('time to points_to_homo: ', end - start)
+
+    start = time.time()
     vecs_p = ndc_to_view(vecs, proj_matrix).T
+    end = time.time()
+    print('time to ndc_to_view: ', end - start)
+
+    start = time.time()
     new_depth = np.copy(depth)
     for i, (y, x) in enumerate(points):
         new_depth[y, x] = vecs_p[i, 2]
+    end = time.time()
+    print('time to extract to new depth: ', end - start)
+
     return new_depth
 
 
