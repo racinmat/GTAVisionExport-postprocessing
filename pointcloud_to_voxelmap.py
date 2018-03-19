@@ -3,13 +3,18 @@ from voxel_map import VoxelMap
 import pickle
 
 
-def pointcloud_to_voxelmap(pointcloud):
+def pointcloud_to_voxelmap(pointcloud, name):
     map = VoxelMap()
     map.voxel_size = 1
     map.free_update = -1.0
     map.hit_update = 1.0
     map.occupancy_threshold = 0.0
-    print([method_name for method_name in dir(VoxelMap) if callable(getattr(VoxelMap, method_name))])
+    cam_pos = np.array([0, 0, 0])
+    line_starts = np.repeat(cam_pos[:, np.newaxis], pointcloud.shape[1], axis=1)
+    map.update_lines(line_starts, pointcloud)
+    [voxels, levels, values] = map.get_voxels()
+    with open('voxelmap-{}.rick'.format(name), 'wb+') as f:
+        pickle.dump([voxels, values], f)
 
 
 def pointcloud_from_csv(path):
@@ -43,7 +48,8 @@ def playing_with_voxelmap():
 
 
 if __name__ == '__main__':
-    playing_with_voxelmap()
+    # playing_with_voxelmap()
 
-    point_cloud = pointcloud_from_csv('../GTAVisionExport_postprocessing/points-2018-02-16--17-09-02--180.csv')
-    pointcloud_to_voxelmap(point_cloud.T)
+    name = 'orig-short-2018-03-07--18-26-53--512'
+    point_cloud = pointcloud_from_csv('../GTAVisionExport_postprocessing/points-{}.csv'.format(name))
+    pointcloud_to_voxelmap(point_cloud.T, name)

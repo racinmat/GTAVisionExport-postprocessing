@@ -1,33 +1,20 @@
 import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
+from matplotlib import gridspec
 from mpl_toolkits.mplot3d import art3d
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import pickle
 import numpy as np
-
-def cube(ax, center, l, opacity):  # plots a cube of side l at (a,b,c)
-    a, b, c = center
-    for ll in [0, l]:
-        for i in range(3):
-            dire = ["x", "y", "z"]
-            xdire = [b, a, a]
-            ydire = [c, c, b]
-            zdire = [a, b, c]
-            # ax.add_collection3d(Poly3DCollection(verts))
-            side = Rectangle((xdire[i], ydire[i]), l, l, edgecolor=None, color='red')
-            ax.add_patch(side)
-            art3d.pathpatch_2d_to_3d(side, z=zdire[i] + ll, zdir=dire[i])
 
 
 def show_voxels(voxels, values):
     voxel_size = 1.0
 
     fig = plt.figure()
-
-    ax = fig.gca(projection='3d')
+    gs = gridspec.GridSpec(2, 1, height_ratios=[4, 1])
+    # ax = fig.add_subplot(2, 1, 1, projection='3d')
+    ax = plt.subplot(gs[0], projection='3d')
     ax.set_aspect("equal")
 
-    # x, y, z = np.indices((8, 8, 8))
     mins = np.min(voxels, axis=1)
     maxs = np.max(voxels, axis=1)
     diffs = (maxs - mins) + 1
@@ -52,51 +39,33 @@ def show_voxels(voxels, values):
     yc += min_corners[1]
     zc += min_corners[2]
 
-    ax.voxels(xc, yc, zc, filled, facecolors=all_values, edgecolor='k')
+    values_range = (np.max(all_values) - np.min(all_values))
+    values_min = np.min(all_values)
+    # because I must deal with colormap mapping myself, fuck it
+    cmap_keys = (all_values - values_min) / values_range # remapping values to 0 1 range
+    colors = plt.cm.get_cmap('plasma')(cmap_keys)
+    # all_values += np.min(all_values) # colormaps don't like negative values, shifting by offset
+
+    ax.voxels(xc, yc, zc, filled, facecolors=colors, edgecolor='k')
     ax.set_xlabel('X Label')
     ax.set_ylabel('Y Label')
     ax.set_zlabel('Z Label')
 
+
+    # showing colormap just for seeing the values
+    # ax = fig.add_subplot(2, 1, 2)
+    ax = plt.subplot(gs[1])
+
+    gradient = np.linspace(0, 1, 256)
+    gradients = np.vstack((gradient, gradient))
+    ax.imshow(gradients, aspect='auto', cmap=plt.get_cmap('plasma'))
+    positions = list(range(len(gradient)))
+    labels = np.round((gradient * values_range) + values_min, decimals=2)
+    plt.xticks(positions[::10], labels[::10])
     plt.show()
 
-
-def example_voxels():
-
-    def midpoints(x):
-        sl = ()
-        for i in range(x.ndim):
-            x = (x[sl + np.index_exp[:-1]] + x[sl + np.index_exp[1:]]) / 2.0
-            sl += np.index_exp[:]
-        return x
-
-    # prepare some coordinates, and attach rgb values to each
-    r, g, b = np.indices((17, 17, 17)) / 16.0
-    rc = midpoints(r)
-    gc = midpoints(g)
-    bc = midpoints(b)
-
-    # define a sphere about [0.5, 0.5, 0.5]
-    sphere = (rc - 0.5) ** 2 + (gc - 0.5) ** 2 + (bc - 0.5) ** 2 < 0.5 ** 2
-
-    # combine the color components
-    colors = np.zeros(sphere.shape + (3,))
-    colors[..., 0] = rc
-    colors[..., 1] = gc
-    colors[..., 2] = bc
-
-    # and plot everything
-    fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    ax.voxels(r, g, b, sphere,
-              facecolors=colors,
-              edgecolors=np.clip(2 * colors - 0.5, 0, 1),  # brighter
-              linewidth=0.5)
-    ax.set(xlabel='r', ylabel='g', zlabel='b')
-
-    plt.show()
 
 if __name__ == '__main__':
-    with open('voxels.rick', 'rb') as f:
+    with open('voxelmap-orig-short-2018-03-07--18-26-53--512.rick', 'rb') as f:
         voxels, values = pickle.load(f)
-    example_voxels()
     show_voxels(voxels, values)
