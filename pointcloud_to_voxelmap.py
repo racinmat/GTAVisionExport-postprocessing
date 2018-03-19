@@ -5,7 +5,7 @@ import pickle
 
 def pointcloud_to_voxelmap(pointcloud, name):
     map = VoxelMap()
-    map.voxel_size = 1
+    map.voxel_size = 0.25
     map.free_update = -1.0
     map.hit_update = 1.0
     map.occupancy_threshold = 0.0
@@ -14,7 +14,7 @@ def pointcloud_to_voxelmap(pointcloud, name):
     map.update_lines(line_starts, pointcloud)
     [voxels, levels, values] = map.get_voxels()
     with open('voxelmap-{}.rick'.format(name), 'wb+') as f:
-        pickle.dump([voxels, values], f)
+        pickle.dump([voxels, values, map.voxel_size], f)
 
 
 def pointcloud_from_csv(path):

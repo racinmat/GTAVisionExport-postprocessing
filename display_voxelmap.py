@@ -6,21 +6,20 @@ import pickle
 import numpy as np
 
 
-def show_voxels(voxels, values):
-    voxel_size = 1.0
+def show_voxels(voxels, values, voxel_size):
 
     fig = plt.figure()
-    gs = gridspec.GridSpec(2, 1, height_ratios=[4, 1])
+    gs = gridspec.GridSpec(1, 2, width_ratios=[5, 1])
     # ax = fig.add_subplot(2, 1, 1, projection='3d')
     ax = plt.subplot(gs[0], projection='3d')
-    ax.set_aspect("equal")
+    # ax.set_aspect("equal")
 
     mins = np.min(voxels, axis=1)
     maxs = np.max(voxels, axis=1)
-    diffs = (maxs - mins) + 1
-    ranges = (diffs * voxel_size).astype(int)
+    diffs = (maxs - mins) / voxel_size
+    ranges = (diffs + 1).astype(int)
     # x, y, z = np.indices(ranges) / voxel_size + voxel_size / 2
-    x, y, z = np.indices(ranges) / voxel_size
+    x, y, z = np.indices(ranges) * voxel_size
     x += mins[0]
     y += mins[1]
     z += mins[2]
@@ -34,7 +33,7 @@ def show_voxels(voxels, values):
 
     # x, y, z are supposed to be corners of voxels, so they will be 1 dim bigger and moved, because I have centers
     min_corners = mins - voxel_size / 2
-    xc, yc, zc = np.indices(ranges + 1) / voxel_size
+    xc, yc, zc = np.indices(ranges + 1) * voxel_size
     xc += min_corners[0]
     yc += min_corners[1]
     zc += min_corners[2]
@@ -58,14 +57,14 @@ def show_voxels(voxels, values):
 
     gradient = np.linspace(0, 1, 256)
     gradients = np.vstack((gradient, gradient))
-    ax.imshow(gradients, aspect='auto', cmap=plt.get_cmap('plasma'))
+    ax.imshow(gradients.T, aspect='auto', cmap=plt.get_cmap('plasma'))
     positions = list(range(len(gradient)))
     labels = np.round((gradient * values_range) + values_min, decimals=2)
-    plt.xticks(positions[::10], labels[::10])
+    plt.yticks(positions[::10], labels[::10])
     plt.show()
 
 
 if __name__ == '__main__':
     with open('voxelmap-orig-short-2018-03-07--18-26-53--512.rick', 'rb') as f:
-        voxels, values = pickle.load(f)
-    show_voxels(voxels, values)
+        voxels, values, voxel_size = pickle.load(f)
+    show_voxels(voxels, values, voxel_size)
