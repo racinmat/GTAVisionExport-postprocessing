@@ -1,5 +1,5 @@
 import numpy as np
-from math import tan, atan, radians, degrees
+from math import tan, atan, radians, degrees, cos, sin
 import time
 
 THRESHOLD = 1000
@@ -171,3 +171,40 @@ def depth_from_integer_range(depth):
     ratio = THRESHOLD / MAXIMUM
     depth *= ratio
     return depth
+
+
+def construct_view_matrix(camera_pos, camera_rotation):
+    view_matrix = np.zeros((4, 4))
+    # view_matrix[0:3, 3] = camera_pos
+    view_matrix[0:3, 0:3] = create_rot_matrix(camera_rotation)
+    view_matrix[3, 3] = 1
+
+    trans_matrix = np.eye(4)
+    trans_matrix[0:3, 3] = -camera_pos
+
+    # return view_matrix
+    return view_matrix @ trans_matrix
+
+
+def create_rot_matrix(euler):
+    x = np.radians(euler[0])
+    y = np.radians(euler[1])
+    z = np.radians(euler[2])
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, sin(x), cos(x)],
+        [0, cos(x), -sin(x)]
+    ], dtype=np.float)
+    Ry = np.array([
+        [cos(y), 0, -sin(y)],
+        [0, 1, 0],
+        [sin(y), 0, cos(y)]
+    ], dtype=np.float)
+    Rz = np.array([
+        [cos(z), sin(z), 0],
+        [sin(z), -cos(z), 0],
+        [0, 0, 1]
+    ], dtype=np.float)
+    result = Rx @ Ry @ Rz
+    return result
