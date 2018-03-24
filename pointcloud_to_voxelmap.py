@@ -30,11 +30,7 @@ def pointclouds_to_voxelmap(pointclouds, camera_posisions, voxel_size=0.25, free
         line_starts = np.repeat(cam_pos[:, np.newaxis], pointcloud.shape[1], axis=1)
         map.update_lines(line_starts, pointcloud)
     [voxels, levels, values] = map.get_voxels()
-    # size je počet známých voxelů, počet prvků v hashmapě
-    # můžu získávat i hodnoty konkrétních voxelů přes map.get_voxels(voxels, levels)
-    # voxely zobrazovat jako pointcloud
-    with open('voxelmap-{}.rick'.format(name), 'wb+') as f:
-        pickle.dump([voxels, values, map.voxel_size], f)
+    return voxels, values, map.voxel_size
 
 
 def pointcloud_from_csv(path):
