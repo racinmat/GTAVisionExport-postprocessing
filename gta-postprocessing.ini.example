@@ -6,3 +6,4 @@ db=dbname='<database>' user='<user>' host='<server>' password='<password>'
 Tiff=<path>
 Jpg=<path>
 MlDataset=<path>
+MlDatasetVoxel=<path>

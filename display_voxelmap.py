@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 
 
-def show_voxels(voxels, values, voxel_size):
+def show_voxels_3d(voxels, values, voxel_size):
 
     fig = plt.figure()
     gs = gridspec.GridSpec(1, 2, width_ratios=[5, 1])
@@ -64,7 +64,54 @@ def show_voxels(voxels, values, voxel_size):
     plt.show()
 
 
+def show_voxels_as_points(voxels, values, voxel_size):
+    fig = plt.figure()
+
+    gs = gridspec.GridSpec(1, 2, width_ratios=[5, 1])
+    # ax = fig.add_subplot(2, 1, 1, projection='3d')
+    ax = plt.subplot(gs[0], projection='3d')
+    xs = voxels[0, :]
+    ys = voxels[1, :]
+    zs = voxels[2, :]
+
+    # x, y, z are supposed to be corners of voxels, so they will be 1 dim bigger and moved, because I have centers
+    values_range = (np.max(values) - np.min(values))
+    values_min = np.min(values)
+    # because I must deal with colormap mapping myself, fuck it
+    cmap_keys = (values - values_min) / values_range # remapping values to 0 1 range
+    colors = plt.cm.get_cmap('plasma')(cmap_keys)
+
+    ax.scatter(xs, ys, zs, c=colors, marker='x')
+
+    ax.set_xlabel('X Label')
+    ax.set_ylabel('Y Label')
+    ax.set_zlabel('Z Label')
+
+
+    # showing colormap just for seeing the values
+    # ax = fig.add_subplot(2, 1, 2)
+    ax = plt.subplot(gs[1])
+
+    gradient = np.linspace(0, 1, 256)
+    gradients = np.vstack((gradient, gradient))
+    ax.imshow(gradients.T, aspect='auto', cmap=plt.get_cmap('plasma'))
+    positions = list(range(len(gradient)))
+    labels = np.round((gradient * values_range) + values_min, decimals=2)
+    plt.yticks(positions[::10], labels[::10])
+    plt.show()
+
+
+def save_csv(voxels, name):
+    a = np.asarray(voxels)
+    np.savetxt("voxels-{}.csv".format(name), a, delimiter=",")
+
+
 if __name__ == '__main__':
-    with open('voxelmap-orig-short-2018-03-07--18-26-53--512.rick', 'rb') as f:
+    name = 'orig-short-2018-03-07--18-26-53--512'
+    with open('voxelmap-{}.rick'.format(name), 'rb') as f:
         voxels, values, voxel_size = pickle.load(f)
-    show_voxels(voxels, values, voxel_size)
+    # show_voxels_3d(voxels, values, voxel_size)
+    voxels = voxels[:, values >= 0]
+    values = values[values >= 0]
+    # show_voxels_as_points(voxels, values, voxel_size)
+    save_csv(voxels.T, name)
