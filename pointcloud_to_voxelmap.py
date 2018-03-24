@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from voxel_map import VoxelMap
 import pickle
 
@@ -21,15 +22,31 @@ def pointcloud_to_voxelmap(pointcloud, camera_pos=np.array([0, 0, 0]), voxel_siz
 def pointclouds_to_voxelmap(pointclouds, camera_posisions, voxel_size=0.25, free_update=-1.0, hit_update=2.0):
     assert len(pointclouds) == len(camera_posisions)
 
+    # start = time.time()
+
     map = VoxelMap()
     map.voxel_size = voxel_size
     map.free_update = free_update
     map.hit_update = hit_update  # zkusit 2násobný hit oproti free, zkusit include directories env var
     map.occupancy_threshold = 0.0
+
+    # end = time.time()
+    # print('setup of voxelmap', end - start)
+    # start = time.time()
+
     for pointcloud, cam_pos in zip(pointclouds, camera_posisions):
         line_starts = np.repeat(cam_pos[:, np.newaxis], pointcloud.shape[1], axis=1)
         map.update_lines(line_starts, pointcloud)
+
+    # end = time.time()
+    # print('updating voxelmap by all cameras', end - start)
+    # start = time.time()
+
     [voxels, levels, values] = map.get_voxels()
+
+    # end = time.time()
+    # print('obtaining voxels', end - start)
+
     return voxels, values, map.voxel_size
 
 
