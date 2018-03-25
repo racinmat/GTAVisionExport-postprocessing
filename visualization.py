@@ -10,6 +10,9 @@ import psycopg2
 import tifffile
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import connection
+# threaded connection pooling
+from psycopg2.pool import PersistentConnectionPool
+from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
 def get_connection():
@@ -21,6 +24,20 @@ def get_connection():
         CONFIG = ConfigParser()
         CONFIG.read(ini_file)
         conn = psycopg2.connect(CONFIG["Postgres"]["db"], cursor_factory=DictCursor)
+    return conn
+
+
+def get_connection_pooled():
+    """
+    :rtype: connection
+    """
+    global conn_pool
+    if conn_pool is None:
+        CONFIG = ConfigParser()
+        CONFIG.read(ini_file)
+        conn_pool = PersistentConnectionPool(conn_pool_min, conn_pool_max, CONFIG["Postgres"]["db"], cursor_factory=DictCursor)
+    conn = conn_pool.getconn()
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     return conn
 
 
@@ -226,6 +243,9 @@ ini_file = "gta-postprocessing.ini"
 in_directory = None
 out_directory = './img'
 conn = None
+conn_pool = None
+conn_pool_min = 1
+conn_pool_max = 28
 
 
 def get_in_directory():
