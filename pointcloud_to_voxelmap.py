@@ -16,6 +16,7 @@ def pointcloud_to_voxelmap(pointcloud, camera_pos=np.array([0, 0, 0]), voxel_siz
     # size je počet známých voxelů, počet prvků v hashmapě
     # můžu získávat i hodnoty konkrétních voxelů přes map.get_voxels(voxels, levels)
     # voxely zobrazovat jako pointcloud
+    # do get_voxels mohu poslat body v deformovaných NDC součadicích a voxelmapa mi sama přes nearest neighbour najde odpovídající voxely, takže nemusím řešit deformaci při transformaci dat do pohledu hlavní kamery
     return voxels, values, map.voxel_size
 
 
