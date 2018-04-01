@@ -208,3 +208,62 @@ def create_rot_matrix(euler):
     ], dtype=np.float)
     result = Rx @ Ry @ Rz
     return result
+
+
+def homo_world_coords_to_pixel(point_homo, view_matrix, proj_matrix, width, height):
+    viewed = view_matrix @ point_homo
+    projected = proj_matrix @ viewed
+    projected /= projected[3]
+    to_pixel_matrix = np.array([
+        [width/2, 0, 0, width/2],
+        [0, -height/2, 0, height/2],
+    ])
+    in_pixels = to_pixel_matrix @ projected
+    return in_pixels
+
+
+def world_coords_to_pixel(pos, view_matrix, proj_matrix, width, height):
+    point_homo = np.array([pos[0], pos[1], pos[2], 1])
+    return homo_world_coords_to_pixel(point_homo, view_matrix, proj_matrix, width, height)
+
+
+def model_coords_to_pixel(model_pos, model_rot, pos, view_matrix, proj_matrix, width, height):
+    point_homo = np.array([pos[0], pos[1], pos[2], 1])
+    model_matrix = construct_model_matrix(model_pos, model_rot)
+    # print('model_matrix\n', model_matrix)
+    world_point_homo = model_matrix @ point_homo
+    return homo_world_coords_to_pixel(world_point_homo, view_matrix, proj_matrix, width, height)
+
+
+def create_model_rot_matrix(euler):
+    x = np.radians(euler[0])
+    y = np.radians(euler[1])
+    z = np.radians(euler[2])
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, cos(x), -sin(x)],
+        [0, sin(x), cos(x)]
+    ], dtype=np.float)
+    Ry = np.array([
+        [cos(y), 0, sin(y)],
+        [0, 1, 0],
+        [-sin(y), 0, cos(y)]
+    ], dtype=np.float)
+    Rz = np.array([
+        [cos(z), -sin(z), 0],
+        [sin(z), cos(z), 0],
+        [0, 0, 1]
+    ], dtype=np.float)
+    result = Rx @ Ry @ Rz
+    return result
+
+
+def construct_model_matrix(position, rotation):
+    view_matrix = np.zeros((4, 4))
+    # view_matrix[0:3, 3] = camera_pos
+    view_matrix[0:3, 0:3] = create_model_rot_matrix(rotation)
+    view_matrix[0:3, 3] = position
+    view_matrix[3, 3] = 1
+
+    return view_matrix
