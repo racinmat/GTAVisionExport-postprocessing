@@ -132,6 +132,7 @@ def show_loaded_bounding_boxes(detections, size, ax):
     # Add the patch to the Axes
     # ax.add_patch(rect)
 
+
 def show_bounding_boxes(name, size, ax):
     detections = get_bounding_boxes(name)
     show_loaded_bounding_boxes(detections, size, ax)
@@ -144,7 +145,10 @@ def load_depth(name):
             tiff_depth.seek(2)
         else:
             tiff_depth = tifffile.imread(os.path.join(get_in_directory(), name + '-depth.tiff'))
-        depths[name] = tiff_depth
+        if use_cache:
+            depths[name] = tiff_depth
+        else:
+            return tiff_depth
     return depths[name]
 
 
@@ -156,7 +160,10 @@ def load_stencil(name):
             tiff_stencil = np.array(tiff_stencil)
         else:
             tiff_stencil = tifffile.imread(os.path.join(get_in_directory(), name + '-stencil.tiff'))
-        stencils[name] = tiff_stencil
+        if use_cache:
+            stencils[name] = tiff_stencil
+        else:
+            return tiff_stencil
     return stencils[name]
 
 
@@ -246,6 +253,7 @@ conn = None
 conn_pool = None
 conn_pool_min = 1
 conn_pool_max = 28
+use_cache = True    # for depth and stencil cache. Is not usable for batch operations with big data and only eats RAM
 
 
 def get_in_directory():
