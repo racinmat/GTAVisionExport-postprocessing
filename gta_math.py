@@ -77,7 +77,7 @@ def ndc_to_view(vecs, proj_matrix):
 
 
 def view_to_world(vecs_p, view_matrix):
-    vecs_p = np.linalg.inv(view_matrix) @ vecs_p
+    vecs_p = inv_rigid(view_matrix) @ vecs_p
     vecs_p /= vecs_p[3, :]
     return vecs_p
 
