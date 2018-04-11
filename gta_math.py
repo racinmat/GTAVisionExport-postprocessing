@@ -77,7 +77,7 @@ def ndc_to_view(vecs, proj_matrix):
 
 
 def view_to_world(vecs_p, view_matrix):
-    vecs_p = np.linalg.inv(view_matrix) @ vecs_p
+    vecs_p = inv_rigid(view_matrix) @ vecs_p
     vecs_p /= vecs_p[3, :]
     return vecs_p
 
@@ -130,18 +130,22 @@ def construct_proj_matrix(H=1080, W=1914, fov=50.0, near_clip=1.5):
     f = near_clip  # the near clip, but f in the book
     n = 10003.815  # the far clip, rounded value of median, after very weird values were discarded
     # x coord
-    r = W * n * tan(radians(fov) / 2) / H
-    l = -r
+    # r = W * n * tan(radians(fov) / 2) / H
+    # l = -r
     # y coord
-    t = n * tan(radians(fov) / 2)
-    b = -t
+    # t = n * tan(radians(fov) / 2)
+    # b = -t
     # x00 = 2*n/(r-l)
     x00 = H / (tan(radians(fov) / 2) * W)
     # x11 = 2*n/(t-b)
     x11 = 1 / tan(radians(fov) / 2)
+    # x02 = -(r + l) / (r - l)
+    # x12 = -(t + b) / (t - b)
+    x02 = 0  # since r == -l, the numerator is 0 and thus whole value is 0
+    x12 = 0  # since b == -t, the numerator is 0 and thus whole value is 0
     return np.array([
-        [x00, 0, -(r + l) / (r - l), 0],
-        [0, x11, -(t + b) / (t - b), 0],
+        [x00, 0, x02, 0],
+        [0, x11, x12, 0],
         [0, 0, -f / (f - n), -f * n / (f - n)],
         [0, 0, -1, 0],
     ])
