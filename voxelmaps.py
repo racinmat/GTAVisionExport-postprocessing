@@ -1,6 +1,6 @@
 import numpy as np
 from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world
-from pointcloud_to_voxelmap import pointclouds_to_voxelmap
+from pointcloud_to_voxelmap import pointclouds_to_voxelmap, pointclouds_to_voxelmap_with_map
 from visualization import get_connection_pooled, load_depth
 
 MAX_DISTANCE = 20
@@ -74,14 +74,15 @@ def scene_to_pointcloud(cameras):
 
 
 def scene_to_voxelmap(scene_id):
-    # start = time.time()
-    pointclouds, cam_positions = scene_to_pointcloud(scene_id)
-    # end = time.time()
-    # print('scene to pointclouds', end - start)
-    # start = time.time()
-    assert (pointclouds[0].shape[0] == 3)
-    voxelmap = pointclouds_to_voxelmap(pointclouds, cam_positions)
-    # end = time.time()
-    # print('pointclouds to voxelmap', end - start)
+    voxels, values, voxel_size, map_obj = scene_to_voxelmap_with_map(scene_id)
 
-    return voxelmap
+    return voxels, values, voxel_size
+
+
+def scene_to_voxelmap_with_map(scene_id):
+    pointclouds, cam_positions = scene_to_pointcloud(scene_id)
+
+    assert (pointclouds[0].shape[0] == 3)
+    voxels, values, voxel_size, map_obj = pointclouds_to_voxelmap_with_map(pointclouds, cam_positions)
+
+    return voxels, values, voxel_size, map_obj
