@@ -80,9 +80,20 @@ def scene_to_voxelmap(scene_id):
 
 
 def scene_to_voxelmap_with_map(scene_id):
+    # this method is just fucking slow, because of pointclouds_to_voxelmap_with_map
+    # import time
+    # start = time.time()
+
     pointclouds, cam_positions = scene_to_pointcloud(scene_id)
+
+    # end = time.time()
+    # print('scene_to_pointcloud:', end - start)
+    # start = time.time()
 
     assert (pointclouds[0].shape[0] == 3)
     voxels, values, voxel_size, map_obj = pointclouds_to_voxelmap_with_map(pointclouds, cam_positions)
+
+    # end = time.time()
+    # print('pointclouds_to_voxelmap_with_map:', end - start)
 
     return voxels, values, voxel_size, map_obj
