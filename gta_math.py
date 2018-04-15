@@ -9,6 +9,8 @@ MAXIMUM = np.iinfo(np.uint16).max
 def pixel_to_ndc(pixel, size):
     p_y, p_x = pixel
     s_y, s_x = size
+    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
     return (((- 2 / s_y) * p_y + 1), (2 / s_x) * p_x - 1)
 
 
@@ -21,6 +23,8 @@ def pixels_to_ndcs(pixels, size):
     p_y = pixels[0, :]
     p_x = pixels[1, :]
     s_y, s_x = size
+    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
     pixels[0, :] = (-2 / s_y) * p_y + 1
     pixels[1, :] = (2 / s_x) * p_x - 1
     return pixels
@@ -29,7 +33,25 @@ def pixels_to_ndcs(pixels, size):
 def ndc_to_pixel(ndc, size):
     ndc_y, ndc_x = ndc
     s_y, s_x = size
+    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
     return (-(s_y / 2) * ndc_y + (s_y / 2), (s_x / 2) * ndc_x + (s_x / 2))
+
+
+def ndcs_to_pixels(ndcs, size):
+    # vectorized version, of above function
+    pixels = np.copy(ndcs).astype(np.float32)
+    if ndcs.shape[1] == 2 and ndcs.shape[0] != 2:
+        ndcs = ndcs.T
+    # pixels are in shape <pixels, 2>
+    ndc_x = ndcs[0, :]
+    ndc_y = ndcs[1, :]
+    s_y, s_x = size
+    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
+    pixels[0, :] = (-s_y / 2) * ndc_y + (s_y / 2)
+    pixels[1, :] = (s_x / 2) * ndc_x + (s_x / 2)
+    return pixels.astype(np.int32)
 
 
 def generate_points(width, height):

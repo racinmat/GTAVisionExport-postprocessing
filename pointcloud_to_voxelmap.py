@@ -49,7 +49,6 @@ def pointclouds_to_voxelmap_with_map(pointclouds, camera_posisions, voxel_size=0
     # start = time.time()
 
     [voxels, levels, values] = map_obj.get_voxels()
-
     # end = time.time()
     # print('obtaining voxels', end - start)
 
