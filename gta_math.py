@@ -212,10 +212,10 @@ def construct_view_matrix(camera_pos, camera_rotation):
     return view_matrix @ trans_matrix
 
 
-def create_rot_matrix(euler):
-    x = np.radians(euler[0])
-    y = np.radians(euler[1])
-    z = np.radians(euler[2])
+def create_rot_matrix(rot):
+    x = np.radians(rot[0])
+    y = np.radians(rot[1])
+    z = np.radians(rot[2])
 
     Rx = np.array([
         [1, 0, 0],

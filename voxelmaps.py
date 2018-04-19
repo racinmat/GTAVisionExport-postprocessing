@@ -2,6 +2,8 @@ import numpy as np
 from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world
 from pointcloud_to_voxelmap import pointclouds_to_voxelmap, pointclouds_to_voxelmap_with_map
 from visualization import get_connection_pooled, load_depth
+import pcl
+
 
 MAX_DISTANCE = 20
 
@@ -62,12 +64,23 @@ def get_main_image(cameras):
     raise NoMainImageException('no main image')
 
 
-def scene_to_pointcloud(cameras):
+def subsample_pointcloud(pointcloud, subsampling_size=1e-1):
+    assert (type(subsampling_size) == float)
+    p = pcl.PointCloud(pointcloud.astype(dtype=np.float32).T)
+    pcl_voxelmap = p.make_voxel_grid_filter()
+    pcl_voxelmap.set_leaf_size(x=subsampling_size, y=subsampling_size, z=subsampling_size)
+    filtered_p = pcl_voxelmap.filter()
+    return filtered_p.to_array().T
+
+
+def scene_to_pointcloud(cameras, subsampling_size):
     pointclouds = []
     cam_positions = []
 
     for cam in cameras:
         pointcloud = camera_to_pointcloud(cam)
+        if subsampling_size is not None:
+            pointcloud = subsample_pointcloud(pointcloud, subsampling_size=1e-1)
         pointclouds.append(pointcloud)
         cam_positions.append(cam['camera_pos'])
     return pointclouds, cam_positions
@@ -79,12 +92,12 @@ def scene_to_voxelmap(scene_id):
     return voxels, values, voxel_size
 
 
-def scene_to_voxelmap_with_map(scene_id):
+def scene_to_voxelmap_with_map(scene_id, subsampling_size=None):
     # this method is just fucking slow, because of pointclouds_to_voxelmap_with_map
     # import time
     # start = time.time()
 
-    pointclouds, cam_positions = scene_to_pointcloud(scene_id)
+    pointclouds, cam_positions = scene_to_pointcloud(scene_id, subsampling_size)
 
     # end = time.time()
     # print('scene_to_pointcloud:', end - start)
