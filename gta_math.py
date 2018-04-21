@@ -1,6 +1,8 @@
 import numpy as np
 from math import tan, atan, radians, degrees, cos, sin
 import time
+from sympy import Line, Point
+
 
 THRESHOLD = 1000
 MAXIMUM = np.iinfo(np.uint16).max
@@ -239,6 +241,8 @@ def create_rot_matrix(rot):
 def homo_world_coords_to_pixel(point_homo, view_matrix, proj_matrix, width, height):
     viewed = view_matrix @ point_homo
     projected = proj_matrix @ viewed
+    # following row works for partially visible cars, not for cars completely outside of the frustum
+    projected[0:3, projected[3] < 0] *= -1  # this row is very important. It fixed invalid projection of points outside the camera view frustum
     projected /= projected[3]
     to_pixel_matrix = np.array([
         [width/2, 0, 0, width/2],
@@ -253,18 +257,18 @@ def world_coords_to_pixel(pos, view_matrix, proj_matrix, width, height):
     return homo_world_coords_to_pixel(point_homo, view_matrix, proj_matrix, width, height)
 
 
-def model_coords_to_pixel(model_pos, model_rot, pos, view_matrix, proj_matrix, width, height):
-    point_homo = np.array([pos[0], pos[1], pos[2], 1])
+def model_coords_to_pixel(model_pos, model_rot, positions, view_matrix, proj_matrix, width, height):
+    point_homo = np.array([positions[:, 0], positions[:, 1], positions[:, 2], np.ones_like(positions[:, 0])])
     model_matrix = construct_model_matrix(model_pos, model_rot)
-    # print('model_matrix\n', model_matrix)
     world_point_homo = model_matrix @ point_homo
+    #print('world_point_homo.shape', world_point_homo.shape)
     return homo_world_coords_to_pixel(world_point_homo, view_matrix, proj_matrix, width, height)
 
 
-def create_model_rot_matrix(euler):
-    x = np.radians(euler[0])
-    y = np.radians(euler[1])
-    z = np.radians(euler[2])
+def create_model_rot_matrix(rot):
+    x = np.radians(rot[0])
+    y = np.radians(rot[1])
+    z = np.radians(rot[2])
 
     Rx = np.array([
         [1, 0, 0],
@@ -293,3 +297,181 @@ def construct_model_matrix(position, rotation):
     view_matrix[3, 3] = 1
 
     return view_matrix
+
+
+def get_model_3dbbox(model_sizes):
+    x_min, x_max, y_min, y_max, z_min, z_max = model_sizes
+    # preparing points of cuboid
+    points_3dbbox = np.array([
+        [x_min, y_min, z_min],
+        [x_min, y_min, z_max],
+        [x_min, y_max, z_min],
+        [x_min, y_max, z_max],
+        [x_max, y_min, z_min],
+        [x_max, y_min, z_max],
+        [x_max, y_max, z_min],
+        [x_max, y_max, z_max],
+    ])
+    return points_3dbbox
+
+
+def model_coords_to_world(model_pos, model_rot, positions, view_matrix, proj_matrix, width, height):
+    point_homo = np.array([positions[:, 0], positions[:, 1], positions[:, 2], np.ones_like(positions[:, 0])])
+    model_matrix = construct_model_matrix(model_pos, model_rot)
+    world_point_homo = model_matrix @ point_homo
+
+    world_point_homo /= world_point_homo[3, :]
+    return world_point_homo.T[:, 0:3]
+
+
+def model_coords_to_ndc(model_pos, model_rot, positions, view_matrix, proj_matrix, width, height):
+    point_homo = np.array([positions[:, 0], positions[:, 1], positions[:, 2], np.ones_like(positions[:, 0])])
+    model_matrix = construct_model_matrix(model_pos, model_rot)
+    point_homo = model_matrix @ point_homo
+    viewed = view_matrix @ point_homo
+    projected = proj_matrix @ viewed
+    projected /= projected[3, :]
+    return projected.T[:, 0:3]
+
+
+def is_entity_in_image(depth, row, view_matrix, proj_matrix, width, height):
+    pos = np.array(row['pos'])
+    rot = np.array(row['rot'])
+
+    model_sizes = np.array(row['model_sizes'])
+    points_3dbbox = get_model_3dbbox(model_sizes)
+
+    # if row['bbox'][0] != [np.inf, np.inf]:
+    #     return True
+
+    # calculating model_coords_to_ndc, so we have both anc and viewed points
+    point_homo = np.array([points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
+    model_matrix = construct_model_matrix(pos, rot)
+    point_homo = model_matrix @ point_homo
+    viewed = view_matrix @ point_homo
+    projected = proj_matrix @ viewed
+    projected /= projected[3, :]
+    bbox_3d = projected.T[:, 0:3]
+
+    bbox_2d = bbox_3d[:, 0:2]
+    # test if points are inside NDC cubloid by X and Y
+    in_ndc = ((bbox_2d[:, 0] > -1) & (bbox_2d[:, 0] < 1) & (bbox_2d[:, 1] > -1) & (bbox_2d[:, 1] < 1)).any()
+    # test if points are behind near clip (if they are, they should be in image)
+    behind_near_clip = (viewed[2] < 0).any()    # assuming near clip is negative here, which means classical near clip
+
+    # the new strategy is only to check cars with bbox infinities.
+    # this car is either not seen or it is partly in the image.
+    # Being partly in the image can be checked by some point being behind ans some poins
+    # in front of near cam plane
+    # return (viewed[2] < 0).any() and (viewed[2] > 0).any()
+
+    # do this test only for entities which can not be excluded otherwise
+    if not in_ndc or not behind_near_clip:
+        return False
+
+    # test of obstacles, if 3d coord of point where middle of entity should be, is in correct depth
+    pixel_pos = world_coords_to_pixel(pos, view_matrix, proj_matrix, width, height)
+    pix_x, pix_y = pixel_pos.astype(int)
+    ndc_y, ndc_x = pixel_to_ndc((pix_y, pix_x), (height, width))
+    if ndc_x < -1 or ndc_x > 1 or ndc_y < -1 or ndc_y > 1:
+        # position is not in the image (e.g. partially visible objects)
+        # so I can not evaluate it and thus I say it is ok, since this test is only for exclding some cars
+        return True
+
+    ndc_homo = np.array([ndc_x, ndc_y, depth[pix_y, pix_x], 1])[:, np.newaxis]
+    view_homo = ndc_to_view(ndc_homo, proj_matrix)
+    world_homo = view_to_world(view_homo, view_matrix)
+    world_homo /= world_homo[3]
+    world_pos = world_homo[0:3].T
+    # now I have original entity position, and world position of pixel corresponding to its location on image.
+    # Now, if they are distant more than diameter of model size, it is not in the image
+    eps = np.linalg.norm(model_sizes.reshape(3, 2))
+    dist = np.linalg.norm(pos - world_pos)
+    return dist <= eps*2
+
+
+# https://stackoverflow.com/questions/3252194/numpy-and-line-intersections
+# def perp( a ) :
+#     b = np.empty_like(a)
+#     b[0] = -a[1]
+#     b[1] = a[0]
+#     return b
+# def seg_intersect(p1, p2) :
+#     a1, a2 = np.array(p1)
+#     b1, b2 = np.array(p2)
+#     da = a2-a1
+#     db = b2-b1
+#     dp = a1-b1
+#     dap = perp(da)
+#     denom = np.dot( dap, db)
+#     num = np.dot( dap, dp )
+#     return (num / denom.astype(float))*db + b1
+
+def ccw(A,B,C):
+    return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+# Return true if line segments AB and CD intersect
+def are_intersecting(l1, l2):
+    A, B = l1
+    C, D = l2
+    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+
+
+def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
+    pos = np.array(row['pos'])
+    rot = np.array(row['rot'])
+    model_sizes = np.array(row['model_sizes'])
+    points_3dbbox = get_model_3dbbox(model_sizes)
+    # calculating model_coords_to_ndc, so we have both anc and viewed points
+    point_homo = np.array([points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
+    model_matrix = construct_model_matrix(pos, rot)
+    point_homo = model_matrix @ point_homo
+    viewed = view_matrix @ point_homo
+    projected = proj_matrix @ viewed
+    projected /= projected[3, :]
+    bbox_3d = projected.T[:, 0:3]
+
+    bbox_2d_points = bbox_3d[:, 0:2]
+    is_3d_bbox_partially_outside = (bbox_2d_points < -1).any() or (bbox_2d_points > 1).any()
+    bbox_2d_points = bbox_2d_points[((bbox_2d_points <= 1) & (bbox_2d_points >= -1)).all(axis=1)]
+    if is_3d_bbox_partially_outside:
+        bbox_2d = model_coords_to_pixel(pos, rot, points_3dbbox, view_matrix, proj_matrix, width, height).T
+        # now we need to compute intersections between end of image and points
+        # now we build 12 lines for 3d bounding box
+        lines = list()
+        lines.append([bbox_2d[0, :], bbox_2d[1, :]])
+        lines.append([bbox_2d[1, :], bbox_2d[3, :]])
+        lines.append([bbox_2d[3, :], bbox_2d[2, :]])
+        lines.append([bbox_2d[2, :], bbox_2d[0, :]])
+
+        lines.append([bbox_2d[4, :], bbox_2d[5, :]])
+        lines.append([bbox_2d[5, :], bbox_2d[7, :]])
+        lines.append([bbox_2d[7, :], bbox_2d[6, :]])
+        lines.append([bbox_2d[6, :], bbox_2d[4, :]])
+
+        lines.append([bbox_2d[4, :], bbox_2d[0, :]])
+        lines.append([bbox_2d[5, :], bbox_2d[1, :]])
+        lines.append([bbox_2d[6, :], bbox_2d[2, :]])
+        lines.append([bbox_2d[7, :], bbox_2d[3, :]])
+
+        borders = list()
+        borders.append([[0, 0], [0, height]])
+        borders.append([[0, height], [width, height]])
+        borders.append([[0, 0], [width, 0]])
+        borders.append([[width, 0], [width, height]])
+
+        for line in lines:
+            for border in borders:
+                if are_intersecting(line, border):
+                    l1 = Line(Point(line[0][0], line[0][1]), Point(line[1][0], line[1][1]))
+                    l2 = Line(Point(border[0][0], border[0][1]), Point(border[1][0], border[1][1]))
+                    x, y = np.array(next(iter(l1.intersect(l2))), dtype=np.float32)
+                    ndc_y, ndc_x = pixel_to_ndc((y, x), (height, width))
+                    bbox_2d_points = np.vstack((bbox_2d_points, [ndc_x, ndc_y]))
+
+    bbox_2d = np.array([
+        [bbox_2d_points[:, 0].max(), -bbox_2d_points[:, 1].min()],
+        [bbox_2d_points[:, 0].min(), -bbox_2d_points[:, 1].max()],
+    ])
+    # rescale from [-1, 1] to [0, 1]
+    bbox_2d = (bbox_2d / 2) + 0.5
+    return bbox_2d.tolist()
