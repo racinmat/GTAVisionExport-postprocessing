@@ -3,7 +3,6 @@ from gta_math import construct_view_matrix, construct_proj_matrix, points_to_hom
     ndcs_to_pixels
 from pointcloud_to_voxelmap import pointclouds_to_voxelmap, pointclouds_to_voxelmap_with_map
 from visualization import get_connection_pooled, load_depth
-import pcl
 
 
 MAX_DISTANCE = 20
@@ -66,6 +65,7 @@ def get_main_image(cameras):
 
 
 def subsample_pointcloud(pointcloud, subsampling_size=1e-1):
+    import pcl
     assert (type(subsampling_size) == float)
     p = pcl.PointCloud(pointcloud.astype(dtype=np.float32).T)
     pcl_voxelmap = p.make_voxel_grid_filter()
@@ -125,3 +125,4 @@ def convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, occupied_ndc_
     vec_z = ((occupied_ndc_positions[2, :] - z_min) * ((z_range-1) / (z_max - z_min))).astype(np.int32)
     voxelmap_ndc_grid[vec_x, vec_y, vec_z] = 1
     return voxelmap_ndc_grid
+

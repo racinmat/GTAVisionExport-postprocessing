@@ -11,6 +11,7 @@ import glob
 import progressbar
 from joblib import Parallel, delayed
 from gta_math import *
+from visualization import save_pointcloud_csv
 
 
 def get_base_name(name):
@@ -26,7 +27,6 @@ def test_plane(X0, X1, X2, x, y, z):
 
 
 def draw3dbboxes(in_directory, out_directory, base_name):
-
     rgb_file = '{}/{}.jpg'.format(in_directory, base_name)
     json_file = '{}/{}.json'.format(in_directory, base_name)
     depth_file = '{}/{}-depth.png'.format(in_directory, base_name)
@@ -44,7 +44,9 @@ def draw3dbboxes(in_directory, out_directory, base_name):
     width = data['width']
     height = data['height']
     # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
-    visible_cars = [e for e in entities if e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix, proj_matrix, width, height)]
+    visible_cars = [e for e in entities if
+                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix,
+                                                                                         proj_matrix, width, height)]
 
     print('camera pos: ', data['camera_pos'])
     fig = plt.figure(figsize=(16, 10))
@@ -83,12 +85,18 @@ def draw3dbboxes(in_directory, out_directory, base_name):
         # print('3D bbox in 2D:\n', bbox_2d)
 
         # showing cuboid
-        pol1 = patches.Polygon(bbox_2d[(0, 1, 3, 2), :], closed=True, linewidth=1, edgecolor='c', facecolor='none')  # fixed x
-        pol2 = patches.Polygon(bbox_2d[(4, 5, 7, 6), :], closed=True, linewidth=1, edgecolor='c', facecolor='none')  # fixed x
-        pol3 = patches.Polygon(bbox_2d[(0, 2, 6, 4), :], closed=True, linewidth=1, edgecolor='c', facecolor='none')  # fixed z
-        pol4 = patches.Polygon(bbox_2d[(1, 3, 7, 5), :], closed=True, linewidth=1, edgecolor='c', facecolor='none')  # fixed z
-        pol5 = patches.Polygon(bbox_2d[(0, 1, 5, 4), :], closed=True, linewidth=1, edgecolor='r', facecolor='none')  # fixed y
-        pol6 = patches.Polygon(bbox_2d[(2, 3, 7, 6), :], closed=True, linewidth=1, edgecolor='g', facecolor='none')  # fixed y
+        pol1 = patches.Polygon(bbox_2d[(0, 1, 3, 2), :], closed=True, linewidth=1, edgecolor='c',
+                               facecolor='none')  # fixed x
+        pol2 = patches.Polygon(bbox_2d[(4, 5, 7, 6), :], closed=True, linewidth=1, edgecolor='c',
+                               facecolor='none')  # fixed x
+        pol3 = patches.Polygon(bbox_2d[(0, 2, 6, 4), :], closed=True, linewidth=1, edgecolor='c',
+                               facecolor='none')  # fixed z
+        pol4 = patches.Polygon(bbox_2d[(1, 3, 7, 5), :], closed=True, linewidth=1, edgecolor='c',
+                               facecolor='none')  # fixed z
+        pol5 = patches.Polygon(bbox_2d[(0, 1, 5, 4), :], closed=True, linewidth=1, edgecolor='r',
+                               facecolor='none')  # fixed y
+        pol6 = patches.Polygon(bbox_2d[(2, 3, 7, 6), :], closed=True, linewidth=1, edgecolor='g',
+                               facecolor='none')  # fixed y
         ax.add_patch(pol1)
         ax.add_patch(pol2)
         ax.add_patch(pol3)
@@ -96,14 +104,14 @@ def draw3dbboxes(in_directory, out_directory, base_name):
         ax.add_patch(pol5)
         ax.add_patch(pol6)
 
-
         # just some dumping for debug purposes
-        point_homo = np.array([points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
+        point_homo = np.array(
+            [points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
         model_matrix = construct_model_matrix(pos, rot)
         point_homo = model_matrix @ point_homo
         viewed = view_matrix @ point_homo
         projected = proj_matrix @ viewed
-        #projected[0:3, projected[ 3] < 0] *= -1
+        # projected[0:3, projected[ 3] < 0] *= -1
         projected /= projected[3]
         np.savetxt("../sample-images/projected-2.csv", projected.T, delimiter=",")
         np.savetxt("../sample-images/viewed-2.csv", viewed.T, delimiter=",")
@@ -182,7 +190,7 @@ def draw_car_pixels(in_directory, out_directory, base_name):
         idxs = np.where(
             (car_mask == True) & (cc >= bbox[1, 0]) & (cc <= bbox[0, 0]) & (rr >= bbox[1, 1]) & (rr <= bbox[0, 1]))
 
-# zkusit na 25 metrů, a mít lineární hloubky jako baseline
+        # zkusit na 25 metrů, a mít lineární hloubky jako baseline
         # 3D coordinates of pixels in idxs
         x = pixel_3d[0, ::].squeeze()[idxs]
         y = pixel_3d[1, ::].squeeze()[idxs]
@@ -212,15 +220,31 @@ if __name__ == '__main__':
     # in_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\raw'
     # out_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\bboxes'
     # out_2_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\semantic-segmentation'
-    in_directory = r'D:\projekty\GTA-V-extractors\sample-images'
-    out_directory = r'D:\projekty\GTA-V-extractors\sample-images\output'
-
-    pattern = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9][0-9].jpg'
-    files = glob.glob(os.path.join(in_directory, pattern))
-    print('there are {} files'.format(len(files)))
-    # name = files[0]
-    # base_name = get_base_name(name)
-    base_name = '2018-03-30--02-02-25--188'
+    # in_directory = r'D:\projekty\GTA-V-extractors\sample-images'
+    # out_directory = r'D:\projekty\GTA-V-extractors\sample-images\output'
+    #
+    # pattern = '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9][0-9].jpg'
+    # files = glob.glob(os.path.join(in_directory, pattern))
+    # print('there are {} files'.format(len(files)))
+    # # name = files[0]
+    # # base_name = get_base_name(name)
+    # base_name = '2018-03-30--02-02-25--188'
     # draw3dbboxes(in_directory, out_directory, base_name)
-    draw_car_pixels(in_directory, out_directory, base_name)
 
+    proj_matrix = np.array([[1.21006660e+00, 0.00000000e+00, 0.00000000e+00,
+                             0.00000000e+00],
+                            [0.00000000e+00, 2.14450692e+00, 0.00000000e+00,
+                             0.00000000e+00],
+                            [0.00000000e+00, 0.00000000e+00, 1.49965283e-04,
+                             1.50022495e+00],
+                            [0.00000000e+00, 0.00000000e+00, -1.00000000e+00,
+                             0.00000000e+00]])
+
+    z_meters_min = 1.5
+    z_meters_max = 25
+
+    bool_grid = np.load('../sample-images/2018-03-07--16-30-26--642.npy')
+    ndc_points = convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_meters_max)
+    ndc_points = np.hstack((ndc_points, np.ones((ndc_points.shape[0], 1)))).T
+    view_points = ndc_to_view(ndc_points, proj_matrix)
+    save_pointcloud_csv(view_points.T[:, 0:3], '{}/{}.csv'.format('../sample-images', '2018-03-07--16-30-26--642'))
