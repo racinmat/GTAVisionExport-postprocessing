@@ -1,5 +1,6 @@
 import numpy as np
-from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world
+from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world, \
+    ndcs_to_pixels
 from pointcloud_to_voxelmap import pointclouds_to_voxelmap, pointclouds_to_voxelmap_with_map
 from visualization import get_connection_pooled, load_depth
 import pcl
@@ -110,3 +111,17 @@ def scene_to_voxelmap_with_map(scene_id, subsampling_size=None):
     # print('pointclouds_to_voxelmap_with_map:', end - start)
 
     return voxels, values, voxel_size, map_obj
+
+
+def convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, occupied_ndc_positions, z_max, z_min):
+    # now I create x X y X z grid with 0s and 1s as grid
+    # so now I have data in pointcloud. And I need to convert these NDC values
+    # into indices, so x:[-1, 1] into [0, 239], y:[-1, 1] to [0, 159],
+    # and z:[z_min, z_max] into [0, 99]
+    voxelmap_ndc_grid = np.zeros((x_range, y_range, z_range), dtype=np.bool)
+    vecs = ndcs_to_pixels(occupied_ndc_positions[0:2, :], (y_range, x_range))
+    vec_y = vecs[0, :]
+    vec_x = vecs[1, :]
+    vec_z = ((occupied_ndc_positions[2, :] - z_min) * ((z_range-1) / (z_max - z_min))).astype(np.int32)
+    voxelmap_ndc_grid[vec_x, vec_y, vec_z] = 1
+    return voxelmap_ndc_grid
