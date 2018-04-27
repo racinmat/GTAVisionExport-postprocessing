@@ -12,6 +12,7 @@ import progressbar
 from joblib import Parallel, delayed
 from gta_math import *
 from visualization import save_pointcloud_csv
+from voxelmaps import convert_ndc_pointcloud_to_bool_grid
 
 
 def get_base_name(name):
@@ -216,6 +217,77 @@ def draw_car_pixels(in_directory, out_directory, base_name):
     plt.show()
 
 
+def test_points_to_grid_and_back():
+    proj_matrix = np.array([[1.21006660e+00, 0.00000000e+00, 0.00000000e+00,
+                             0.00000000e+00],
+                            [0.00000000e+00, 2.14450692e+00, 0.00000000e+00,
+                             0.00000000e+00],
+                            [0.00000000e+00, 0.00000000e+00, 1.49965283e-04,
+                             1.50022495e+00],
+                            [0.00000000e+00, 0.00000000e+00, -1.00000000e+00,
+                             0.00000000e+00]])
+
+    # data preparation
+    # x_range = 160
+    # y_range = 120
+    # z_range = 100
+    x_range = 8
+    y_range = 6
+    z_range = 5
+    z_meters_min = 1.5
+    z_meters_max = 25
+    # z min calc
+    z_min = proj_matrix @ [1, 1, -z_meters_max, 1]
+    z_min = z_min[2] / z_min[3]
+    # z max calc
+    z_max = proj_matrix @ [1, 1, -z_meters_min, 1]
+    z_max = z_max[2] / z_max[3]
+
+    ndc_points = np.array([
+        [-1, 1, 0.6, 1],
+        [-0.5, 0.4, 0.6, 1],
+        [1, -0.8, 0.4, 1],
+        [-0.4, -1, 0.4, 1],
+        [0.4, 0.6, 0.8, 1],
+    ]).T
+
+    view_points = ndc_to_view(ndc_points, proj_matrix)
+    ndc_grid = convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, ndc_points, proj_matrix, z_meters_min, z_meters_max)
+    ndc_points_reconst = convert_bool_grid_to_ndc_pointcloud(ndc_grid, proj_matrix, z_meters_min, z_meters_max)
+    ndc_points_reconst = np.hstack((ndc_points_reconst, np.ones((ndc_points_reconst.shape[0], 1)))).T
+
+    view_points_reconst = ndc_to_view(ndc_points_reconst, proj_matrix)
+
+    save_pointcloud_csv(ndc_points.T[:, 0:3], '{}/ndc-{}.csv'.format('../sample-images', 'sample'))
+    save_pointcloud_csv(view_points.T[:, 0:3], '{}/view-{}.csv'.format('../sample-images', 'sample'))
+    save_pointcloud_csv(ndc_points_reconst.T[:, 0:3], '{}/ndc-reconst-{}.csv'.format('../sample-images', 'sample'))
+    save_pointcloud_csv(view_points_reconst.T[:, 0:3], '{}/view-reconst-{}.csv'.format('../sample-images', 'sample'))
+
+    bin_size = (z_meters_max - z_meters_min) / z_range
+    print('z view voxel size: {}'.format(bin_size))
+    ndc_z = get_depth_lut_for_linear_view(proj_matrix, z_meters_min, z_meters_max, z_range)
+    ndc_z_min = get_depth_lut_for_linear_view(proj_matrix, z_meters_min + (bin_size / 2), z_meters_max + (bin_size / 2), z_range)
+    # now I calculate min value of each bin for binning values
+    # ndc_z_min = get_depth_lut_for_linear_view(proj_matrix, z_meters_min + (bin_size / 2), z_meters_max + (bin_size / 2), z_range)
+    plt.figure(figsize=(20, 7))
+
+    # just playing with transformations here
+    x_orig = ndc_points[0, :]
+    vecs = ndcs_to_pixels(ndc_points[0:2, :], (y_range, x_range))
+    x_vec = vecs[1, :]
+    x_reconst = (x_vec / (0.5*x_range)) - 1
+
+    plt.plot(ndc_points[0, :], x_vec, 'o', c='b')
+    plt.plot(ndc_points_reconst[0, :], x_vec, 'o', c='r')
+    # plt.plot(ndc_z, np.zeros_like(ndc_z), 'o', c='b')
+    # plt.plot(ndc_z_min, np.zeros_like(ndc_z_min) - 0.1, 'o', c='r')
+    # some_points = np.linspace(0, 1, 30)
+    # digitized = np.digitize(some_points, ndc_z_min)
+    # plt.plot(some_points, digitized, 'o', c='y')
+    # plt.ylim([-1, 6])
+    plt.show()
+
+
 if __name__ == '__main__':
     # in_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\raw'
     # out_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\bboxes'
@@ -231,20 +303,22 @@ if __name__ == '__main__':
     # base_name = '2018-03-30--02-02-25--188'
     # draw3dbboxes(in_directory, out_directory, base_name)
 
-    proj_matrix = np.array([[1.21006660e+00, 0.00000000e+00, 0.00000000e+00,
-                             0.00000000e+00],
-                            [0.00000000e+00, 2.14450692e+00, 0.00000000e+00,
-                             0.00000000e+00],
-                            [0.00000000e+00, 0.00000000e+00, 1.49965283e-04,
-                             1.50022495e+00],
-                            [0.00000000e+00, 0.00000000e+00, -1.00000000e+00,
-                             0.00000000e+00]])
+    # proj_matrix = np.array([[1.21006660e+00, 0.00000000e+00, 0.00000000e+00,
+    #                          0.00000000e+00],
+    #                         [0.00000000e+00, 2.14450692e+00, 0.00000000e+00,
+    #                          0.00000000e+00],
+    #                         [0.00000000e+00, 0.00000000e+00, 1.49965283e-04,
+    #                          1.50022495e+00],
+    #                         [0.00000000e+00, 0.00000000e+00, -1.00000000e+00,
+    #                          0.00000000e+00]])
+    #
+    # z_meters_min = 1.5
+    # z_meters_max = 25
+    #
+    # bool_grid = np.load('../sample-images/2018-03-07--16-30-26--642.npy')
+    # ndc_points = convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_meters_max)
+    # ndc_points = np.hstack((ndc_points, np.ones((ndc_points.shape[0], 1)))).T
+    # view_points = ndc_to_view(ndc_points, proj_matrix)
+    # save_pointcloud_csv(view_points.T[:, 0:3], '{}/{}.csv'.format('../sample-images', '2018-03-07--16-30-26--642'))
 
-    z_meters_min = 1.5
-    z_meters_max = 25
-
-    bool_grid = np.load('../sample-images/2018-03-07--16-30-26--642.npy')
-    ndc_points = convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_meters_max)
-    ndc_points = np.hstack((ndc_points, np.ones((ndc_points.shape[0], 1)))).T
-    view_points = ndc_to_view(ndc_points, proj_matrix)
-    save_pointcloud_csv(view_points.T[:, 0:3], '{}/{}.csv'.format('../sample-images', '2018-03-07--16-30-26--642'))
+    test_points_to_grid_and_back()
