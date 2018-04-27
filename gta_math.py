@@ -477,16 +477,7 @@ def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
     return bbox_2d.tolist()
 
 
-def convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_meters_max):
-    x_range, y_range, z_range = bool_grid.shape
-    # z min calc
-    z_min = proj_matrix @ [1, 1, -z_meters_max, 1]
-    z_min = z_min[2] / z_min[3]
-    # z max calc
-    z_max = proj_matrix @ [1, 1, -z_meters_min, 1]
-    z_max = z_max[2] / z_max[3]
-
-    # z mapping is nonlinear to get linear view
+def get_depth_lut_for_linear_view(proj_matrix, z_meters_min, z_meters_max, z_range):
     X_view, Y_view, Z_view, W_view = np.meshgrid(np.linspace(1, 2, 1), np.linspace(1, 2, 1),
                                                  np.linspace(-z_meters_max, -z_meters_min, z_range),
                                                  np.linspace(1, 2, 1))
@@ -496,12 +487,21 @@ def convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_
     # ndc_z = np.flip(ndc_positions[2, :], axis=0)
     ndc_z = ndc_positions[2, :]
 
+    return ndc_z
+
+
+def convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_meters_max):
+    x_range, y_range, z_range = bool_grid.shape
+
+    # z mapping is nonlinear to get linear view
+    ndc_z = get_depth_lut_for_linear_view(proj_matrix, z_meters_min, z_meters_max, z_range)
+
     points = np.argwhere(bool_grid == True)
     points = points.astype(dtype=np.float32)
     # x mapping to ndc
-    points[:, 0] = (points[:, 0] / (0.5*x_range)) - 1
-    points[:, 1] = (points[:, 1] / (0.5*y_range)) - 1
+    transformed = pixels_to_ndcs(np.vstack((points[:, 1], points[:, 0])), (y_range, x_range))
+    points[:, 0] = transformed[1, :]
+    points[:, 1] = transformed[0, :]
     # we can map x and y linearly, but we need to z map hyperbolically, so we use LUT
     points[:, 2] = ndc_z[points[:, 2].astype(np.int32)]
     return points
-

@@ -1,6 +1,6 @@
 import numpy as np
 from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world, \
-    ndcs_to_pixels
+    ndcs_to_pixels, get_depth_lut_for_linear_view
 from pointcloud_to_voxelmap import pointclouds_to_voxelmap, pointclouds_to_voxelmap_with_map
 from visualization import get_connection_pooled, load_depth
 
@@ -113,7 +113,11 @@ def scene_to_voxelmap_with_map(scene_id, subsampling_size=None):
     return voxels, values, voxel_size, map_obj
 
 
-def convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, occupied_ndc_positions, z_max, z_min):
+def convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, occupied_ndc_positions, proj_matrix, z_meters_min, z_meters_max):
+    # because I want to have Z scale linear in view, and nonlinear in NDC, I need to perform nonlinear binning of z values
+    bin_size = (z_meters_max - z_meters_min) / z_range
+    ndc_z_min = get_depth_lut_for_linear_view(proj_matrix, z_meters_min + (bin_size / 2), z_meters_max + (bin_size / 2), z_range)
+
     # now I create x X y X z grid with 0s and 1s as grid
     # so now I have data in pointcloud. And I need to convert these NDC values
     # into indices, so x:[-1, 1] into [0, 239], y:[-1, 1] to [0, 159],
@@ -122,7 +126,7 @@ def convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, occupied_ndc_
     vecs = ndcs_to_pixels(occupied_ndc_positions[0:2, :], (y_range, x_range))
     vec_y = vecs[0, :]
     vec_x = vecs[1, :]
-    vec_z = ((occupied_ndc_positions[2, :] - z_min) * ((z_range-1) / (z_max - z_min))).astype(np.int32)
+    vec_z = np.digitize(occupied_ndc_positions[2, :], ndc_z_min)
+    vec_z[vec_z >= z_range] = z_range - 1   # just throw outliers into nearest bin
     voxelmap_ndc_grid[vec_x, vec_y, vec_z] = 1
     return voxelmap_ndc_grid
-
