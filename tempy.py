@@ -12,7 +12,7 @@ import progressbar
 from joblib import Parallel, delayed
 from gta_math import *
 from visualization import save_pointcloud_csv
-from voxelmaps import convert_ndc_pointcloud_to_bool_grid
+from voxelmaps import convert_ndc_pointcloud_to_bool_grid, ndc_pcl_to_grid_linear_view
 
 
 def get_base_name(name):
@@ -252,8 +252,8 @@ def test_points_to_grid_and_back():
     ]).T
 
     view_points = ndc_to_view(ndc_points, proj_matrix)
-    ndc_grid = convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, ndc_points, proj_matrix, z_meters_min, z_meters_max)
-    ndc_points_reconst = convert_bool_grid_to_ndc_pointcloud(ndc_grid, proj_matrix, z_meters_min, z_meters_max)
+    ndc_grid = ndc_pcl_to_grid_linear_view(x_range, y_range, z_range, ndc_points, proj_matrix, z_meters_min, z_meters_max)
+    ndc_points_reconst = grid_to_ndc_pcl_linear_view(ndc_grid, proj_matrix, z_meters_min, z_meters_max)
     ndc_points_reconst = np.hstack((ndc_points_reconst, np.ones((ndc_points_reconst.shape[0], 1)))).T
 
     view_points_reconst = ndc_to_view(ndc_points_reconst, proj_matrix)

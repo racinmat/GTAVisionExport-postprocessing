@@ -490,11 +490,15 @@ def get_depth_lut_for_linear_view(proj_matrix, z_meters_min, z_meters_max, z_ran
     return ndc_z
 
 
-def convert_bool_grid_to_ndc_pointcloud(bool_grid, proj_matrix, z_meters_min, z_meters_max):
+def grid_to_ndc_pcl_linear_view(bool_grid, proj_matrix, z_meters_min, z_meters_max):
     x_range, y_range, z_range = bool_grid.shape
-
-    # z mapping is nonlinear to get linear view
     ndc_z = get_depth_lut_for_linear_view(proj_matrix, z_meters_min, z_meters_max, z_range)
+    return grid_to_ndc_pcl_with_lut(bool_grid, ndc_z)
+
+
+def grid_to_ndc_pcl_with_lut(bool_grid, ndc_z):
+    # here bin centers are in lut
+    x_range, y_range, z_range = bool_grid.shape
 
     points = np.argwhere(bool_grid == True)
     points = points.astype(dtype=np.float32)
