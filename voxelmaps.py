@@ -113,10 +113,15 @@ def scene_to_voxelmap_with_map(scene_id, subsampling_size=None):
     return voxels, values, voxel_size, map_obj
 
 
-def convert_ndc_pointcloud_to_bool_grid(x_range, y_range, z_range, occupied_ndc_positions, proj_matrix, z_meters_min, z_meters_max):
-    # because I want to have Z scale linear in view, and nonlinear in NDC, I need to perform nonlinear binning of z values
+def ndc_pcl_to_grid_linear_view(x_range, y_range, z_range, occupied_ndc_positions, proj_matrix, z_meters_min, z_meters_max):
     bin_size = (z_meters_max - z_meters_min) / z_range
     ndc_z_min = get_depth_lut_for_linear_view(proj_matrix, z_meters_min + (bin_size / 2), z_meters_max + (bin_size / 2), z_range)
+    return ndc_pcl_to_grid_with_lut(x_range, y_range, z_range, occupied_ndc_positions, ndc_z_min)
+
+
+def ndc_pcl_to_grid_with_lut(x_range, y_range, z_range, occupied_ndc_positions, ndc_z_min):
+    # here bin borders are in lut
+    # because I want to have Z scale linear in view, and nonlinear in NDC, I need to perform nonlinear binning of z values
 
     # now I create x X y X z grid with 0s and 1s as grid
     # so now I have data in pointcloud. And I need to convert these NDC values
