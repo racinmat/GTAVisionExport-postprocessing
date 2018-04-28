@@ -135,3 +135,39 @@ def ndc_pcl_to_grid_with_lut(x_range, y_range, z_range, occupied_ndc_positions, 
     vec_z[vec_z >= z_range] = z_range - 1   # just throw outliers into nearest bin
     voxelmap_ndc_grid[vec_x, vec_y, vec_z] = 1
     return voxelmap_ndc_grid
+
+
+def generate_frustum_points(proj_matrix, x_range, y_range, z_range, z_meters_min, z_meters_max, linear_view_sampling):
+    x_min = -1  # NDC corners
+    x_max = 1  # NDC corners
+    y_min = -1  # NDC corners
+    y_max = 1  # NDC corners
+    # z min calc
+    z_min = proj_matrix @ [1, 1, -z_meters_max, 1]
+    z_min = z_min[2] / z_min[3]
+    # z max calc
+    z_max = proj_matrix @ [1, 1, -z_meters_min, 1]
+    z_max = z_max[2] / z_max[3]
+
+    if proj_matrix.tobytes() in points_cache:
+        return points_cache[proj_matrix.tobytes()].copy(), z_max, z_min
+
+    X, Y, Z, W = np.meshgrid(np.linspace(x_min, x_max, x_range), np.linspace(y_min, y_max, y_range),
+                             np.linspace(z_min, z_max, z_range), np.linspace(1, 2, 1))
+    if linear_view_sampling:
+        X_view, Y_view, Z_view, W_view = np.meshgrid(np.linspace(1, 2, 1), np.linspace(1, 2, 1),
+                                                     np.linspace(-z_meters_max, -z_meters_min, z_range),
+                                                     np.linspace(1, 2, 1))
+        view_positions = np.vstack([X_view.ravel(), Y_view.ravel(), Z_view.ravel(), W_view.ravel()])
+        ndc_positions = proj_matrix @ view_positions
+        ndc_positions /= ndc_positions[3, :]
+        ndc_z = ndc_positions[2, :]
+        Z = np.tile(ndc_z, (x_range, y_range, 1))[:, :, :, np.newaxis]
+
+    positions = np.vstack([X.ravel(), Y.ravel(), Z.ravel(), W.ravel()])
+
+    points_cache[proj_matrix.tobytes()] = positions
+    return positions, z_max, z_min
+
+
+points_cache = {}
