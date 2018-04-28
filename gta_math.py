@@ -4,8 +4,11 @@ import time
 from sympy import Line, Point
 
 
+# threshold for persisting images,
 THRESHOLD = 1000
 MAXIMUM = np.iinfo(np.uint16).max
+# depth will be assinged threshold value for values behind it, effectively projecting it nearer
+PROJECTING = False
 
 
 def pixel_to_ndc(pixel, size):
@@ -79,8 +82,12 @@ def points_to_homo(res, depth, tresholding=True):
     else:
         threshold = - np.inf
 
+    if PROJECTING:
+        # print('projecting')
+        depth[depth < threshold] = threshold    # since 0 is far clip, depth below threshold is behind threshold, and this projects it
+    # print('threshold', threshold)
     # vecs = np.zeros((4, points.shape[0]))
-    valid_points = np.where(depth > threshold)
+    valid_points = np.where(depth >= threshold)
     valid_y, valid_x = valid_points
 
     vecs = np.zeros((4, len(valid_y)))

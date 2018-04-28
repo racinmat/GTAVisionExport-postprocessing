@@ -1,8 +1,11 @@
+import warnings
+
 import numpy as np
 from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world, \
     ndcs_to_pixels, get_depth_lut_for_linear_view
 from pointcloud_to_voxelmap import pointclouds_to_voxelmap, pointclouds_to_voxelmap_with_map
 from visualization import get_connection_pooled, load_depth
+import time
 
 
 MAX_DISTANCE = 20
@@ -37,13 +40,20 @@ def load_scene_db_data(scene_id):
 
 
 def camera_to_pointcloud(cam):
+    # print('MAX_DISTANCE', MAX_DISTANCE)
+    # start = time.time()
     name = cam['imagepath']
     depth = load_depth(name)
     cam['cam_far_clip'] = MAX_DISTANCE
+    # print('load_depth:', time.time() - start)
+    # start = time.time()
     vecs, _ = points_to_homo(cam, depth)
+    # print('points_to_homo:', time.time() - start)
+    # start = time.time()
     assert(vecs.shape[0] == 4)
     vecs_p = ndc_to_view(vecs, cam['proj_matrix'])
     vecs_p_world = view_to_world(vecs_p, cam['view_matrix'])
+    # print('ndc_to_world:', time.time() - start)
     assert(vecs_p_world.shape[0] == 4)
     return vecs_p_world[0:3, :]
 
@@ -71,7 +81,10 @@ def subsample_pointcloud(pointcloud, subsampling_size=1e-1):
     pcl_voxelmap = p.make_voxel_grid_filter()
     pcl_voxelmap.set_leaf_size(x=subsampling_size, y=subsampling_size, z=subsampling_size)
     filtered_p = pcl_voxelmap.filter()
-    return filtered_p.to_array().T
+    filtered_pcl = filtered_p.to_array().T
+    if filtered_pcl.shape == pointcloud.shape:
+        warnings.warn("pointcloud is same size after subsampling, something is wrong, probably voxelsize too small")
+    return filtered_pcl
 
 
 def scene_to_pointcloud(cameras, subsampling_size):
@@ -79,9 +92,14 @@ def scene_to_pointcloud(cameras, subsampling_size):
     cam_positions = []
 
     for cam in cameras:
+        # start = time.time()
         pointcloud = camera_to_pointcloud(cam)
+        # print('camera_to_pointcloud:', time.time() - start)
+        # start = time.time()
         if subsampling_size is not None:
-            pointcloud = subsample_pointcloud(pointcloud, subsampling_size=1e-1)
+            # print('performing pcl subsampling with size {}'.format(subsampling_size))
+            pointcloud = subsample_pointcloud(pointcloud, subsampling_size=subsampling_size)
+        # print('subsample_pointcloud:', time.time() - start)
         pointclouds.append(pointcloud)
         cam_positions.append(cam['camera_pos'])
     return pointclouds, cam_positions
@@ -95,20 +113,13 @@ def scene_to_voxelmap(scene_id):
 
 def scene_to_voxelmap_with_map(scene_id, subsampling_size=None):
     # this method is just fucking slow, because of pointclouds_to_voxelmap_with_map
-    # import time
     # start = time.time()
-
     pointclouds, cam_positions = scene_to_pointcloud(scene_id, subsampling_size)
-
-    # end = time.time()
-    # print('scene_to_pointcloud:', end - start)
+    # print('scene_to_pointcloud:', time.time() - start)
     # start = time.time()
-
     assert (pointclouds[0].shape[0] == 3)
     voxels, values, voxel_size, map_obj = pointclouds_to_voxelmap_with_map(pointclouds, cam_positions)
-
-    # end = time.time()
-    # print('pointclouds_to_voxelmap_with_map:', end - start)
+    # print('pointclouds_to_voxelmap_with_map:', time.time() - start)
 
     return voxels, values, voxel_size, map_obj
 
@@ -127,7 +138,7 @@ def ndc_pcl_to_grid_with_lut(x_range, y_range, z_range, occupied_ndc_positions, 
     # so now I have data in pointcloud. And I need to convert these NDC values
     # into indices, so x:[-1, 1] into [0, 239], y:[-1, 1] to [0, 159],
     # and z:[z_min, z_max] into [0, 99]
-    voxelmap_ndc_grid = np.zeros((x_range, y_range, z_range), dtype=np.bool)
+    voxelmap_ndc_grid = np.zeros((x_range, y_range, z_range), dtype=np.int8)
     vecs = ndcs_to_pixels(occupied_ndc_positions[0:2, :], (y_range, x_range))
     vec_y = vecs[0, :]
     vec_x = vecs[1, :]

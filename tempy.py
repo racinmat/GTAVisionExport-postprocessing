@@ -12,14 +12,19 @@ import progressbar
 from joblib import Parallel, delayed
 from gta_math import *
 from visualization import save_pointcloud_csv
-from voxelmaps import convert_ndc_pointcloud_to_bool_grid, ndc_pcl_to_grid_linear_view
+from voxelmaps import ndc_pcl_to_grid_linear_view, camera_to_pointcloud, load_scene_db_data, scene_to_pointcloud
+import visualization
+from configparser import ConfigParser
+import voxelmaps
+import gta_math
+import time
 
 
 def get_base_name(name):
     return os.path.basename(os.path.splitext(name)[0])
 
 
-def test_plane(X0, X1, X2, x, y, z):
+def check_plane(X0, X1, X2, x, y, z):
     v1 = X1 - X0
     v2 = X2 - X0
     n = np.cross(v1, v2)
@@ -198,12 +203,12 @@ def draw_car_pixels(in_directory, out_directory, base_name):
         z = pixel_3d[2, ::].squeeze()[idxs]
 
         # test if the points lie inside 3D bbox
-        in1 = test_plane(bbox_3d[3, :], bbox_3d[2, :], bbox_3d[7, :], x, y, z)
-        in2 = test_plane(bbox_3d[1, :], bbox_3d[5, :], bbox_3d[0, :], x, y, z)
-        in3 = test_plane(bbox_3d[6, :], bbox_3d[2, :], bbox_3d[4, :], x, y, z)
-        in4 = test_plane(bbox_3d[3, :], bbox_3d[7, :], bbox_3d[1, :], x, y, z)
-        in5 = test_plane(bbox_3d[7, :], bbox_3d[6, :], bbox_3d[5, :], x, y, z)
-        in6 = test_plane(bbox_3d[0, :], bbox_3d[2, :], bbox_3d[1, :], x, y, z)
+        in1 = check_plane(bbox_3d[3, :], bbox_3d[2, :], bbox_3d[7, :], x, y, z)
+        in2 = check_plane(bbox_3d[1, :], bbox_3d[5, :], bbox_3d[0, :], x, y, z)
+        in3 = check_plane(bbox_3d[6, :], bbox_3d[2, :], bbox_3d[4, :], x, y, z)
+        in4 = check_plane(bbox_3d[3, :], bbox_3d[7, :], bbox_3d[1, :], x, y, z)
+        in5 = check_plane(bbox_3d[7, :], bbox_3d[6, :], bbox_3d[5, :], x, y, z)
+        in6 = check_plane(bbox_3d[0, :], bbox_3d[2, :], bbox_3d[1, :], x, y, z)
         is_inside = in1 & in2 & in3 & in4 & in5 & in6
 
         rgb[(idxs[0][is_inside], idxs[1][is_inside])] = np.array(cm.viridis(id * 25)[0:3]) * 255
@@ -217,7 +222,7 @@ def draw_car_pixels(in_directory, out_directory, base_name):
     plt.show()
 
 
-def test_points_to_grid_and_back():
+def try_points_to_grid_and_back():
     proj_matrix = np.array([[1.21006660e+00, 0.00000000e+00, 0.00000000e+00,
                              0.00000000e+00],
                             [0.00000000e+00, 2.14450692e+00, 0.00000000e+00,
@@ -288,6 +293,96 @@ def test_points_to_grid_and_back():
     plt.show()
 
 
+def try_subsampling():
+    ini_file = "gta-postprocessing.ini"
+    visualization.multi_page = False
+    visualization.ini_file = ini_file
+
+    conn = visualization.get_connection_pooled()
+    cur = conn.cursor()
+
+    CONFIG = ConfigParser()
+    CONFIG.read(ini_file)
+    in_directory = CONFIG["Images"]["Tiff"]
+    out_directory = CONFIG["Images"]["MlDatasetVoxel"]
+    out_inspect_directory = r'D:\showing-pointclouds'
+
+    scene_id = '386b407b-586c-4d88-9d41-8dc2a0b70e70'  # from voxelmap run
+
+    cameras = load_scene_db_data(scene_id)
+
+    z_meters_min = 1.5
+    z_meters_max = 25
+    # voxelmaps.MAX_DISTANCE = 25
+    voxelmaps.MAX_DISTANCE = 1500
+    linear_view_sampling = True
+    gta_math.PROJECTING = False
+
+    start = time.time()
+    pointclouds, cam_positions = scene_to_pointcloud(cameras, 1e-1)
+
+
+def try_pcl_subsampling_detailed():
+    import pcl
+    ini_file = "gta-postprocessing.ini"
+    visualization.multi_page = False
+    visualization.ini_file = ini_file
+    CONFIG = ConfigParser()
+    CONFIG.read(ini_file)
+    scene_id = '386b407b-586c-4d88-9d41-8dc2a0b70e70'  # from voxelmap run
+    cameras = load_scene_db_data(scene_id)
+    cam = cameras[0]
+
+    z_meters_min = 1.5
+    z_meters_max = 25
+    voxelmaps.MAX_DISTANCE = 100
+    linear_view_sampling = True
+    # gta_math.PROJECTING = False
+    gta_math.PROJECTING = True
+    subsampling_size = 1e-1
+
+    # getting pointcloud
+    name = cam['imagepath']
+    depth = visualization.load_depth(name)
+    cam['cam_far_clip'] = voxelmaps.MAX_DISTANCE
+    vecs, _ = points_to_homo(cam, depth)
+    assert(vecs.shape[0] == 4)
+    vecs_p = ndc_to_view(vecs, cam['proj_matrix'])
+    vecs_p_world = view_to_world(vecs_p, cam['view_matrix'])
+    assert(vecs_p_world.shape[0] == 4)
+    pointcloud = vecs_p_world[0:3, :]
+    print('pointcloud.shape[1]:', pointcloud.shape[1])
+
+    # subsampling it with pcl
+    p = pcl.PointCloud(pointcloud.astype(dtype=np.float32).T)
+    pcl_voxelmap = p.make_voxel_grid_filter()
+    pcl_voxelmap.set_leaf_size(x=subsampling_size, y=subsampling_size, z=subsampling_size)
+    filtered_p = pcl_voxelmap.filter()
+    pointcloud_subsampled = filtered_p.to_array().T
+
+    print('pointcloud_subsampled.shape[1]:', pointcloud_subsampled.shape[1])
+
+    name = cam['imagepath']
+    depth = visualization.load_depth(name)
+    cam['cam_far_clip'] = voxelmaps.MAX_DISTANCE
+    vecs, _ = points_to_homo(cam, depth, False)
+    assert(vecs.shape[0] == 4)
+    vecs_p = ndc_to_view(vecs, cam['proj_matrix'])
+    vecs_p_world = view_to_world(vecs_p, cam['view_matrix'])
+    assert(vecs_p_world.shape[0] == 4)
+    pointcloud = vecs_p_world[0:3, :]
+    print('pointcloud.shape[1]:', pointcloud.shape[1])
+
+    # subsampling it with pcl
+    p = pcl.PointCloud(pointcloud.astype(dtype=np.float32).T)
+    pcl_voxelmap = p.make_voxel_grid_filter()
+    pcl_voxelmap.set_leaf_size(x=subsampling_size, y=subsampling_size, z=subsampling_size)
+    filtered_p = pcl_voxelmap.filter()
+    pointcloud_subsampled = filtered_p.to_array().T
+
+    print('pointcloud_subsampled.shape[1]:', pointcloud_subsampled.shape[1])
+
+
 if __name__ == '__main__':
     # in_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\raw'
     # out_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\bboxes'
@@ -321,4 +416,6 @@ if __name__ == '__main__':
     # view_points = ndc_to_view(ndc_points, proj_matrix)
     # save_pointcloud_csv(view_points.T[:, 0:3], '{}/{}.csv'.format('../sample-images', '2018-03-07--16-30-26--642'))
 
-    test_points_to_grid_and_back()
+    # try_points_to_grid_and_back()
+    # try_subsampling()
+    try_pcl_subsampling_detailed()
