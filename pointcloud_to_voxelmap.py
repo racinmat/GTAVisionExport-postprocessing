@@ -21,7 +21,7 @@ def pointcloud_to_voxelmap_with_map(pointcloud, camera_pos=np.array([0, 0, 0]), 
 
 
 def pointcloud_to_voxelmap(pointcloud, camera_pos=np.array([0, 0, 0]), voxel_size=0.25, free_update=-1.0, hit_update=2.0):
-    voxels, values, voxel_size, map_obj = pointcloud_to_voxelmap_with_map(pointcloud, camera_pos=np.array([0, 0, 0]), voxel_size=0.25, free_update=-1.0, hit_update=2.0)
+    voxels, values, voxel_size, map_obj = pointcloud_to_voxelmap_with_map(pointcloud, camera_pos, voxel_size, free_update, hit_update)
     return voxels, values, voxel_size
 
 

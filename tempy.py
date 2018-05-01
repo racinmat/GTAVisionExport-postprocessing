@@ -320,6 +320,7 @@ def try_subsampling():
 
     start = time.time()
     pointclouds, cam_positions = scene_to_pointcloud(cameras, 1e-1)
+    voxelmaps.scene_to_voxelmap_with_map(cameras, 1e-1, True)
 
 
 def try_pcl_subsampling_detailed():
@@ -417,5 +418,5 @@ if __name__ == '__main__':
     # save_pointcloud_csv(view_points.T[:, 0:3], '{}/{}.csv'.format('../sample-images', '2018-03-07--16-30-26--642'))
 
     # try_points_to_grid_and_back()
-    # try_subsampling()
-    try_pcl_subsampling_detailed()
+    try_subsampling()
+    # try_pcl_subsampling_detailed()

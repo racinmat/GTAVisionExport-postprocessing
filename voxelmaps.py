@@ -87,7 +87,7 @@ def subsample_pointcloud(pointcloud, subsampling_size=1e-1):
     return filtered_pcl
 
 
-def scene_to_pointcloud(cameras, subsampling_size):
+def scene_to_pointcloud(cameras, subsampling_size=None):
     pointclouds = []
     cam_positions = []
 
@@ -105,16 +105,34 @@ def scene_to_pointcloud(cameras, subsampling_size):
     return pointclouds, cam_positions
 
 
-def scene_to_voxelmap(scene_id):
-    voxels, values, voxel_size, map_obj = scene_to_voxelmap_with_map(scene_id)
+def scene_to_voxelmap(cameras):
+    voxels, values, voxel_size, map_obj = scene_to_voxelmap_with_map(cameras)
 
     return voxels, values, voxel_size
 
 
-def scene_to_voxelmap_with_map(scene_id, subsampling_size=None):
+def to_main_cam_view(cameras, pointclouds, cam_positions):
+    main_cam = get_main_image(cameras)
+    view_matrix = main_cam['view_matrix']
+    for i, (pointcloud, cam_pos) in enumerate(zip(pointclouds, cam_positions)):
+        pointcloud_view = view_matrix @ np.vstack([pointcloud, np.ones((1, pointcloud.shape[1]))])
+        pointcloud_view /= pointcloud_view[3, :]
+        pointclouds[i] = pointcloud_view[0:3, :]
+
+        cam_pos_view = view_matrix @ np.hstack([cam_pos, 1])
+        cam_pos_view /= cam_pos_view[3]
+        cam_positions[i] = cam_pos_view[0:3]
+    return pointclouds, cam_positions
+
+
+def scene_to_voxelmap_with_map(cameras, subsampling_size=None, main_camera_view=False):
+    # if main_camera_view parameter is true, coordinates will be transferred to main camera coordinate system
     # this method is just fucking slow, because of pointclouds_to_voxelmap_with_map
     # start = time.time()
-    pointclouds, cam_positions = scene_to_pointcloud(scene_id, subsampling_size)
+    pointclouds, cam_positions = scene_to_pointcloud(cameras, subsampling_size)
+    if main_camera_view:
+        pointclouds, cam_positions = to_main_cam_view(cameras, pointclouds, cam_positions)
+
     # print('scene_to_pointcloud:', time.time() - start)
     # start = time.time()
     assert (pointclouds[0].shape[0] == 3)
