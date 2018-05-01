@@ -76,6 +76,23 @@ def get_detections(name, additional_condition = ''):
     return results
 
 
+def get_car_positions(handle, run_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""SELECT ARRAY[st_x(pos), st_y(pos), st_z(pos)] as pos
+        FROM detections
+        join snapshots s2 on detections.snapshot_id = s2.snapshot_id
+        WHERE handle = {} and run_id = {}
+        ORDER BY created
+        """.format(handle, run_id))
+    # print(size)
+    results = []
+    for row in cur:
+        res = dict(row)
+        results.append(res['pos'])
+    return results
+
+
 def get_detections_multiple(names, additional_condition=''):
     # this is batch operation for multiple files
     names_string = ', '.join(names)
