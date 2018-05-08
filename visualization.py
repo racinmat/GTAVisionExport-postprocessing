@@ -180,7 +180,7 @@ def load_depth(name):
             depths[name] = tiff_depth
         else:
             return tiff_depth
-    return depths[name]
+    return np.copy(depths[name])    # it is being modified, now loaded data dont mutate
 
 
 def load_stencil(name):
@@ -195,7 +195,7 @@ def load_stencil(name):
             stencils[name] = tiff_stencil
         else:
             return tiff_stencil
-    return stencils[name]
+    return np.copy(stencils[name])
 
 
 def load_stencil_ids(name):

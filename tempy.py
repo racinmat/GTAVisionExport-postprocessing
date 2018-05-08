@@ -384,6 +384,39 @@ def try_pcl_subsampling_detailed():
     print('pointcloud_subsampled.shape[1]:', pointcloud_subsampled.shape[1])
 
 
+def try_simple_pointcloud_load_and_merge():
+    main_name = '2018-05-08--14-15-35--576'
+
+    ini_file = "gta-postprocessing.ini"
+    visualization.multi_page = False
+    visualization.ini_file = ini_file
+
+    conn = visualization.get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""SELECT scene_id \
+        FROM snapshots \
+        WHERE imagepath = '{}' \
+        """.format(main_name))
+
+    scene_id = list(cur)[0]['scene_id']
+    print(scene_id)
+
+    cameras = load_scene_db_data(scene_id)
+
+    voxelmaps.MAX_DISTANCE = 1000
+    gta_math.PROJECTING = True
+
+    #print([c['cam_far_clip'] for c in cameras])
+    big_pcls, cam_positions = scene_to_pointcloud(cameras)
+    print([c['cam_far_clip'] for c in cameras])
+    # big_pcls, cam_positions = to_main_cam_view(cameras, big_pcls, cam_positions)
+    big_pcl = np.hstack(big_pcls)
+    print(big_pcl.max(axis=1) - big_pcl.min(axis=1))
+
+    # save_pointcloud_csv(big_pcl.T[:, 0:3], '{}/big-orig-poincloud-{}.csv'.format(out_directory, main_name))
+
+
 if __name__ == '__main__':
     # in_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\raw'
     # out_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\bboxes'
@@ -418,5 +451,6 @@ if __name__ == '__main__':
     # save_pointcloud_csv(view_points.T[:, 0:3], '{}/{}.csv'.format('../sample-images', '2018-03-07--16-30-26--642'))
 
     # try_points_to_grid_and_back()
-    try_subsampling()
+    # try_subsampling()
     # try_pcl_subsampling_detailed()
+    try_simple_pointcloud_load_and_merge()
