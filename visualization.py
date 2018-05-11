@@ -296,8 +296,11 @@ def get_in_directory():
     return in_directory
 
 
-def save_pointcloud_csv(vecs, name):
-    assert(vecs.shape[1] == 3)
+def save_pointcloud_csv(vecs, name, paraview=False):
+    if paraview:
+        assert (vecs.shape[1] == 4)
+    else:
+        assert (vecs.shape[1] == 3)
     a = np.asarray(vecs)
     np.savetxt(name, a, delimiter=",")
 
