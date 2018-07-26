@@ -142,24 +142,29 @@ def cuboid_to_trianges(xmin, ymin, zmin, xmax, ymax, zmax):
 
 def create_base_car_mesh():
     # Create shape
-    data = np.zeros(6, dtype=mesh.Mesh.dtype)
+    data = np.zeros(12, dtype=mesh.Mesh.dtype)
 
     # the shape will be something like cuboid, but squeezed in the front
     # sizes from car bounding box, but modified
-    data['vectors'][0] = np.array(
-        [[-0.91, -2.30, -0.57],
-         [-0.91, -2.30, 0.98],
-         [-0.91, 2.14, -0.57]])
-    data['vectors'][1] = np.array(
-        [[0.91, 2.14, -0.57],
-         [-0.91, 2.14, -0.57],
-         [-0.91, 2.14, -0.57]])
+    data['vectors'] = cuboid_to_trianges(-0.91, -2.30, -0.57, 0.91, 2.14, 0.98)
 
     return data
 
 
-def create_mesh(position, rotation):
+def create_cam_mesh(position, rotation, rel_rotation):
     data = create_base_cam_mesh()
+    for key, arr in enumerate(data['vectors']):
+        # how rotation is now
+        # data['vectors'][key] = data['vectors'][key] @ create_rot_matrix(rotation).T
+        # how rotation should be
+        data['vectors'][key] = data['vectors'][key] @ (create_rot_matrix(rotation) @ create_rot_matrix(rel_rotation)).T
+        data['vectors'][key] += position
+    m = mesh.Mesh(data.copy())
+    return m
+
+
+def create_car_mesh(position, rotation):
+    data = create_base_car_mesh()
     for key, arr in enumerate(data['vectors']):
         data['vectors'][key] = data['vectors'][key] @ create_rot_matrix(rotation).T
         data['vectors'][key] += position
@@ -169,19 +174,31 @@ def create_mesh(position, rotation):
 
 if __name__ == '__main__':
     cam_positions = (
-        (1179.65173339843750000, -2045.31115722656250000, 46.57981109619140600),
-        (1178.46594238281250000, -2044.48974609375000000, 46.67757797241211000),
-        (1175.44824218750000000, -2044.99560546875000000, 45.73021697998047000),
-        (1178.44921875000000000, -2046.01501464843750000, 46.19437408447265600),
+        (1179.651, -2045.311, 46.579),
+        (1178.465, -2044.489, 46.677),
+        (1175.448, -2044.995, 45.730),
+        (1178.449, -2046.015, 46.194),
     )
     cam_rotations = (
-        (11.96167850494384800, 17.57795333862304700, -90.63151550292969000),
-        (11.96167850494384800, 17.57795333862304700, -0.63152277469635010),
-        (11.96167850494384800, 17.57795333862304700, 89.36846923828125000),
-        (11.96167850494384800, 17.57795143127441400, 179.36846923828125000),
+        (11.961, 17.577, -90.631),
+        (11.961, 17.577, -0.631),
+        (11.961, 17.577, 89.368),
+        (11.961, 17.577, 179.368),
+    )
+    cam_rel_rotations = (
+        (0, 0, 0),
+        (0, 0, 90),
+        (0, 0, 180),
+        (0, 0, 270),
     )
 
-    for i, tupl in enumerate(zip(cam_positions, cam_rotations)):
-        pos, rot = tupl
-        m = create_mesh(pos, rot)
+    for i in range(len(cam_positions)):
+        # how it is now
+        # pos, rot, rel_rot = cam_positions[i], cam_rotations[i], cam_rel_rotations[i]
+        # how it should be
+        pos, rot, rel_rot = cam_positions[i], cam_rotations[0], cam_rel_rotations[i]    # 0th is car rotation
+        m = create_cam_mesh(pos, rot, rel_rot)
         m.save('./example/camera-{}.stl'.format(i))
+
+    m = create_car_mesh((1177.75, -2045.07, 45.90), (11.96167850494384800, 17.57795333862304700, -90.63151550292969000))
+    m.save('./example/car.stl')
