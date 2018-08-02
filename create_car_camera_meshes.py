@@ -240,7 +240,8 @@ def load_data_static():
 
 if __name__ == '__main__':
     # cam_positions, cam_rotations, cam_rel_rotations, car_position = load_data_static()
-    cam_positions, cam_rotations, cam_rel_rotations, car_position = load_data_db_scene('412c1831-419a-4459-83d2-9a6eaf89a62f')
+    # cam_positions, cam_rotations, cam_rel_rotations, car_position = load_data_db_scene('412c1831-419a-4459-83d2-9a6eaf89a62f')
+    cam_positions, cam_rotations, cam_rel_rotations, car_position = load_data_db_scene('1ce01ac0-f41e-48f0-a78f-867575a50aa4')
     for i in range(len(cam_positions)):
         # how it is now
         pos, rot, rel_rot = cam_positions[i], cam_rotations[i], cam_rel_rotations[i]

@@ -417,6 +417,124 @@ def try_simple_pointcloud_load_and_merge():
     # save_pointcloud_csv(big_pcl.T[:, 0:3], '{}/big-orig-poincloud-{}.csv'.format(out_directory, main_name))
 
 
+def create_rot_matrix(rot):
+    x = np.radians(rot[0])
+    y = np.radians(rot[1])
+    z = np.radians(rot[2])
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, cos(x), -sin(x)],
+        [0, sin(x), cos(x)]
+    ], dtype=np.float)
+    Ry = np.array([
+        [cos(y), 0, sin(y)],
+        [0, 1, 0],
+        [-sin(y), 0, cos(y)]
+    ], dtype=np.float)
+    Rz = np.array([
+        [cos(z), -sin(z), 0],
+        [sin(z), cos(z), 0],
+        [0, 0, 1]
+    ], dtype=np.float)
+    result = Rz @ Ry @ Rx
+    return result
+
+
+def create_rot_matrix_2(rot):
+    x = np.radians(rot[0])
+    y = np.radians(rot[1])
+    z = np.radians(rot[2])
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, cos(x), -sin(x)],
+        [0, sin(x), cos(x)]
+    ], dtype=np.float)
+    Ry = np.array([
+        [cos(y), 0, sin(y)],
+        [0, 1, 0],
+        [-sin(y), 0, cos(y)]
+    ], dtype=np.float)
+    Rz = np.array([
+        [cos(z), -sin(z), 0],
+        [sin(z), cos(z), 0],
+        [0, 0, 1]
+    ], dtype=np.float)
+    result = Rx @ Ry @ Rz
+    return result
+
+
+def create_rot_matrix_3(rot):
+    x = np.radians(rot[0])
+    y = np.radians(rot[1])
+    z = np.radians(rot[2])
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, sin(x), cos(x)],
+        [0, cos(x), -sin(x)]
+    ], dtype=np.float)
+    Ry = np.array([
+        [cos(y), 0, -sin(y)],
+        [0, 1, 0],
+        [sin(y), 0, cos(y)]
+    ], dtype=np.float)
+    Rz = np.array([
+        [cos(z), sin(z), 0],
+        [sin(z), -cos(z), 0],
+        [0, 0, 1]
+    ], dtype=np.float)
+    result = Rx @ Ry @ Rz
+    return result
+
+
+def create_rot_matrix_4(rot):
+    x = np.radians(rot[0])
+    y = np.radians(rot[1])
+    z = np.radians(rot[2])
+
+    Rx = np.array([
+        [1, 0, 0],
+        [0, sin(x), cos(x)],
+        [0, cos(x), -sin(x)]
+    ], dtype=np.float)
+    Ry = np.array([
+        [cos(y), 0, -sin(y)],
+        [0, 1, 0],
+        [sin(y), 0, cos(y)]
+    ], dtype=np.float)
+    Rz = np.array([
+        [cos(z), sin(z), 0],
+        [sin(z), -cos(z), 0],
+        [0, 0, 1]
+    ], dtype=np.float)
+    result = Rz @ Ry @ Rx
+    return result
+
+
+def play_with_matrices():
+    cam_1_rot = [20.94379806518554700, 0.59126496315002440, 49.62200546264648400]
+    cam_2_rot = [0.63308995962142940, -20.94262886047363300, 139.39569091796875000]
+    cam_3_rot = [-20.94379806518554700, -0.59126579761505130, -130.37797546386720000]
+    cam_4_rot = [-0.63308995962142940, 20.94263076782226600, -40.60428619384765600]
+
+    car_rot = [20.94379806518554700, 0.59126496315002440, 49.62200546264648400]
+
+    cam_1_rel_rot = [0, 0, 0]
+    cam_2_rel_rot = [0, 0, 90]
+    cam_3_rel_rot = [0, 0, 180]
+    cam_4_rel_rot = [0, 0, 270]
+
+    car_rot_mat = create_rot_matrix(car_rot)
+    cam_2_gt_rot_mat = create_rot_matrix(cam_2_rot)
+    car_cam_2_rot_mat = create_rot_matrix(car_rot) @ create_rot_matrix(cam_2_rel_rot)
+    car_cam_2_rot_mat_2 = create_rot_matrix(car_rot) @ create_rot_matrix_2(cam_2_rel_rot)
+    car_cam_2_rot_mat_3 = create_rot_matrix(car_rot) @ create_rot_matrix_3(cam_2_rel_rot)
+    car_cam_2_rot_mat_4 = create_rot_matrix(car_rot) @ create_rot_matrix_4(cam_2_rel_rot)
+    print(car_rot)
+
+
 if __name__ == '__main__':
     # in_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\raw'
     # out_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\bboxes'
@@ -453,4 +571,5 @@ if __name__ == '__main__':
     # try_points_to_grid_and_back()
     # try_subsampling()
     # try_pcl_subsampling_detailed()
-    try_simple_pointcloud_load_and_merge()
+    # try_simple_pointcloud_load_and_merge()
+    play_with_matrices()
