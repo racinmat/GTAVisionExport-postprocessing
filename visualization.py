@@ -13,8 +13,11 @@ from psycopg2.extensions import connection
 # threaded connection pooling
 from psycopg2.pool import PersistentConnectionPool
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world
-
+from gta_math import construct_view_matrix, construct_proj_matrix, points_to_homo, ndc_to_view, view_to_world, \
+    is_entity_in_image, calculate_2d_bbox, world_coords_to_pixel, get_model_3dbbox, model_coords_to_pixel, \
+    construct_model_matrix
+from matplotlib.pyplot import Figure
+from numpy import ndarray
 
 def get_connection():
     """
@@ -167,6 +170,79 @@ def show_loaded_bounding_boxes(detections, size, ax):
 def show_bounding_boxes(name, size, ax):
     detections = get_bounding_boxes(name)
     show_loaded_bounding_boxes(detections, size, ax)
+
+
+def draw3dbboxes(rgb, depth, data, fig):
+    """
+    :param rgb:
+    :type rgb: ndarray
+    :param depth:
+    :type depth: ndarray
+    :param data:
+    :type data: dict
+    :param fig:
+    :type fig: Figure
+    """
+    entities = data['entities']
+    view_matrix = np.array(data['view_matrix'])
+    proj_matrix = np.array(data['proj_matrix'])
+    width = data['width']
+    height = data['height']
+    # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
+    visible_cars = [e for e in entities if
+                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix,
+                                                                                         proj_matrix, width, height)]
+
+    print('camera pos: ', data['camera_pos'])
+    ax = fig.gca()
+    ax.axis('off')
+    ax.imshow(rgb)
+
+    for row in visible_cars:
+        draw_one_entity_3dbboxes(row, view_matrix, proj_matrix, width, height, ax)
+
+
+def draw_one_entity_3dbboxes(row, view_matrix, proj_matrix, width, height, ax):
+    row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
+    pos = np.array(row['pos'])
+
+    bbox = np.array(row['bbox_calc'])
+    bbox[:, 0] *= width
+    bbox[:, 1] *= height
+    bbox_width, bbox_height = bbox[0, :] - bbox[1, :]
+    print('2D bbox:', bbox)
+    rect = patches.Rectangle(bbox[1, :], bbox_width, bbox_height, linewidth=1, edgecolor='y', facecolor='none')
+    ax.add_patch(rect)
+
+    # 3D bounding box
+    rot = np.array(row['rot'])
+    model_sizes = np.array(row['model_sizes'])
+    points_3dbbox = get_model_3dbbox(model_sizes)
+
+    # projecting cuboid to 2d
+    bbox_2d = model_coords_to_pixel(pos, rot, points_3dbbox, view_matrix, proj_matrix, width, height).T
+    # print('3D bbox:\n', points_3dbbox)
+    # print('3D bbox in 2D:\n', bbox_2d)
+
+    # showing cuboid
+    pol1 = patches.Polygon(bbox_2d[(0, 1, 3, 2), :], closed=True, linewidth=1, edgecolor='c',
+                           facecolor='none')  # fixed x
+    pol2 = patches.Polygon(bbox_2d[(4, 5, 7, 6), :], closed=True, linewidth=1, edgecolor='c',
+                           facecolor='none')  # fixed x
+    pol3 = patches.Polygon(bbox_2d[(0, 2, 6, 4), :], closed=True, linewidth=1, edgecolor='c',
+                           facecolor='none')  # fixed z
+    pol4 = patches.Polygon(bbox_2d[(1, 3, 7, 5), :], closed=True, linewidth=1, edgecolor='c',
+                           facecolor='none')  # fixed z
+    pol5 = patches.Polygon(bbox_2d[(0, 1, 5, 4), :], closed=True, linewidth=1, edgecolor='r',
+                           facecolor='none')  # fixed y
+    pol6 = patches.Polygon(bbox_2d[(2, 3, 7, 6), :], closed=True, linewidth=1, edgecolor='g',
+                           facecolor='none')  # fixed y
+    ax.add_patch(pol1)
+    ax.add_patch(pol2)
+    ax.add_patch(pol3)
+    ax.add_patch(pol4)
+    ax.add_patch(pol5)
+    ax.add_patch(pol6)
 
 
 def load_depth(name):

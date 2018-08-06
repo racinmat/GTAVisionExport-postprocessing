@@ -32,11 +32,11 @@ def check_plane(X0, X1, X2, x, y, z):
     return n[0] * (x - X0[0]) + n[1] * (y - X0[1]) + n[2] * (z - X0[2]) > 0
 
 
-def draw3dbboxes(in_directory, out_directory, base_name):
-    rgb_file = '{}/{}.jpg'.format(in_directory, base_name)
-    json_file = '{}/{}.json'.format(in_directory, base_name)
-    depth_file = '{}/{}-depth.png'.format(in_directory, base_name)
-    stencil_file = '{}/{}-stencil.png'.format(in_directory, base_name)
+def draw3dbboxes(directory, base_name):
+    rgb_file = '{}/{}.jpg'.format(directory, base_name)
+    json_file = '{}/{}.json'.format(directory, base_name)
+    depth_file = '{}/{}-depth.png'.format(directory, base_name)
+    stencil_file = '{}/{}-stencil.png'.format(directory, base_name)
 
     rgb = np.array(Image.open(rgb_file))
     depth = np.array(Image.open(depth_file))
