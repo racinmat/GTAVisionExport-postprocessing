@@ -199,10 +199,10 @@ def draw3dbboxes(rgb, depth, data, fig):
     ax.imshow(rgb)
 
     for row in visible_cars:
-        draw_one_entity_3dbboxes(row, view_matrix, proj_matrix, width, height, ax)
+        draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax)
 
 
-def draw_one_entity_3dbboxes(row, view_matrix, proj_matrix, width, height, ax):
+def draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax):
     row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
     pos = np.array(row['pos'])
 
