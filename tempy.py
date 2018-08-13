@@ -1,3 +1,4 @@
+import imageio
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -18,6 +19,7 @@ from configparser import ConfigParser
 import voxelmaps
 import gta_math
 import time
+from moviepy.editor import *
 
 
 def get_base_name(name):
@@ -535,6 +537,116 @@ def play_with_matrices():
     print(car_rot)
 
 
+def try_videos():
+    imageio.show_formats()
+
+    ini_file = "gta-postprocessing.ini"
+    visualization.multi_page = False
+    visualization.ini_file = ini_file
+    visualization.use_cache = False
+
+    conn = visualization.get_connection()
+    cur = conn.cursor()
+
+    CONFIG = ConfigParser()
+    CONFIG.read(ini_file)
+    in_directory = r'D:\output-datasets\offroad-7'
+    out_directory = r'D:\showing-videos\offroad-7'
+
+    run_id = 4148
+
+    cur.execute("""SELECT imagepath, \
+          ARRAY[st_x(camera_relative_rotation), st_y(camera_relative_rotation), st_z(camera_relative_rotation)] as camera_relative_rotation,
+          ARRAY[st_x(camera_relative_position), st_y(camera_relative_position), st_z(camera_relative_position)] as camera_relative_position 
+          FROM snapshots \
+          WHERE run_id = {} AND camera_fov != 0 \
+          ORDER BY timestamp ASC \
+        """.format(run_id))
+    # camera fov is sanity check for malformed images
+    results = []
+    for row in cur:
+        res = dict(row)
+        # res['camera_relative_rotation'] = np.array(res['camera_relative_rotation'])
+        results.append(res)
+
+    print('There are {} snapshots'.format(len(results)))
+
+    cur.execute("""SELECT DISTINCT \
+          ARRAY[st_x(camera_relative_rotation), st_y(camera_relative_rotation), st_z(camera_relative_rotation)] as camera_relative_rotation, 
+          ARRAY[st_x(camera_relative_position), st_y(camera_relative_position), st_z(camera_relative_position)] as camera_relative_position 
+          FROM snapshots \
+          WHERE run_id = {} AND camera_fov != 0 \
+          ORDER BY camera_relative_rotation ASC \
+        """.format(run_id))
+    # camera fov is sanity check for malformed images
+    print('there are following relative camera rotations')
+    cam_configurations = []
+    for row in cur:
+        print(row['camera_relative_rotation'])
+        print(row['camera_relative_position'])
+        cam_configurations.append((row['camera_relative_rotation'], row['camera_relative_position']))
+
+    def split_results_by_relative_cam_configurations(results):
+        res_groups = {}
+        for cam_conf in cam_configurations:
+            res_groups[str(cam_conf)] = [i for i in results if
+                                         (i['camera_relative_rotation'], i['camera_relative_position']) == cam_conf]
+        return res_groups
+
+    def result_group_to_video(results, suffix):
+        img_sequence = [os.path.join(in_directory, i['imagepath'] + suffix) for i in results]
+        clip = ImageSequenceClip(img_sequence, fps=10)
+        return clip
+
+    def process_depth_image(image):
+        image = np.array(image.convert('RGB')) / np.iinfo(np.uint16).max
+        return image
+
+    def result_depth_group_to_video(results, suffix):
+        img_sequence = [os.path.join(in_directory, i['imagepath'] + suffix) for i in results]
+        # img_sequence = [Image.open(i) for i in img_sequence]
+        # workers = 8
+        # img_sequence = Parallel(n_jobs=workers, backend='threading')(delayed(process_depth_image)(i) for i in img_sequence)
+        clip = ImageSequenceClip(img_sequence, fps=10, with_mask=False)
+        # clip = clip.fl_image(process_depth_image)
+        return clip
+
+    def process_stencil_image(colors, image):
+        image = np.array(image) % 8
+        image = colors[image]
+        return image
+
+    def result_stencil_group_to_video(results, suffix):
+        colors = (plt.cm.viridis(np.linspace(0, 1, 8))[:, :3] * np.iinfo(np.uint8).max).astype(np.uint8)
+        img_sequence = [os.path.join(in_directory, i['imagepath'] + suffix) for i in results]
+        # img_sequence = [Image.open(i) for i in img_sequence]  # IO operation, no need to perallelize
+        # from 60 to 16 seconds sppedup, nice, all cores at full load
+        # workers = 8
+        # img_sequence = Parallel(n_jobs=workers, backend='threading')(delayed(process_stencil_image)(colors, i) for i in img_sequence)
+        clip = ImageSequenceClip(img_sequence, fps=10, with_mask=False)
+        # clip = clip.fl_image(process_stencil_image)
+        return clip
+
+    result_groups = split_results_by_relative_cam_configurations(results)
+    for cam_conf, res in result_groups.items():
+        print(cam_conf)
+        print(len(res))
+
+    for cam_conf, res in result_groups.items():
+        clip = result_group_to_video(res, '.jpg')
+        depth_clip = result_depth_group_to_video(res, '-depth.png')
+        stencil_clip = result_stencil_group_to_video(res, '-stencil.png')
+
+        video_name = os.path.join(out_directory, "camera-{}.mp4".format(cam_conf))
+        clip.write_videofile(video_name, audio=False, codec='mpeg4', threads=8)
+
+        video_name = os.path.join(out_directory, "camera-{}-depth.mp4".format(cam_conf))
+        depth_clip.write_videofile(video_name, audio=False, codec='mpeg4')
+
+        video_name = os.path.join(out_directory, "camera-{}-stencil.mp4".format(cam_conf))
+        stencil_clip.write_videofile(video_name, audio=False, codec='mpeg4')
+
+
 if __name__ == '__main__':
     # in_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\raw'
     # out_directory = r'D:\projekty\GTA-V-extractors\traffic-camera-dataset\bboxes'
@@ -572,4 +684,5 @@ if __name__ == '__main__':
     # try_subsampling()
     # try_pcl_subsampling_detailed()
     # try_simple_pointcloud_load_and_merge()
-    play_with_matrices()
+    # play_with_matrices()
+    try_videos()
