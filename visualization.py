@@ -2,9 +2,9 @@ import os
 from configparser import ConfigParser
 import numpy as np
 import re
-from PIL import Image, ImageFile
+from PIL import Image, ImageFile, ImageDraw
 from skimage import io
-from matplotlib import cm, patches
+from matplotlib import cm, patches, colors
 import matplotlib.pyplot as plt
 import psycopg2
 import tifffile
@@ -202,17 +202,40 @@ def draw3dbboxes(rgb, depth, data, fig):
         draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax)
 
 
-def draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax):
+def draw3dbboxes_pillow(rgb, depth, data):
+    """
+    :param rgb:
+    :type rgb: ndarray
+    :param depth:
+    :type depth: ndarray
+    :param data:
+    :type data: dict
+    :param fig:
+    :type fig: Figure
+    """
+    entities = data['entities']
+    view_matrix = np.array(data['view_matrix'])
+    proj_matrix = np.array(data['proj_matrix'])
+    width = data['width']
+    height = data['height']
+    # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
+    visible_cars = [e for e in entities if
+                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix,
+                                                                                         proj_matrix, width, height)]
+
+    im = Image.fromarray(rgb)
+    for row in visible_cars:
+        draw_one_entity_3dbbox_pillow(row, view_matrix, proj_matrix, width, height, im)
+    return im
+
+
+def calculate_one_entity_bbox(row, view_matrix, proj_matrix, width, height):
     row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
     pos = np.array(row['pos'])
 
     bbox = np.array(row['bbox_calc'])
     bbox[:, 0] *= width
     bbox[:, 1] *= height
-    bbox_width, bbox_height = bbox[0, :] - bbox[1, :]
-    print('2D bbox:', bbox)
-    rect = patches.Rectangle(bbox[1, :], bbox_width, bbox_height, linewidth=1, edgecolor='y', facecolor='none')
-    ax.add_patch(rect)
 
     # 3D bounding box
     rot = np.array(row['rot'])
@@ -223,8 +246,21 @@ def draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax):
     bbox_2d = model_coords_to_pixel(pos, rot, points_3dbbox, view_matrix, proj_matrix, width, height).T
     # print('3D bbox:\n', points_3dbbox)
     # print('3D bbox in 2D:\n', bbox_2d)
+    return bbox, bbox_2d
 
+
+def draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax):
+    bbox, bbox_2d = calculate_one_entity_bbox(row, view_matrix, proj_matrix, width, height)
     # showing cuboid
+    draw_one_entity_3dbbox_matplotlib(bbox, bbox_2d, ax)
+
+
+def draw_one_entity_3dbbox_matplotlib(bbox, bbox_2d, ax):
+    bbox_width, bbox_height = bbox[0, :] - bbox[1, :]
+    print('2D bbox:', bbox)
+    rect = patches.Rectangle(bbox[1, :], bbox_width, bbox_height, linewidth=1, edgecolor='y', facecolor='none')
+    ax.add_patch(rect)
+
     pol1 = patches.Polygon(bbox_2d[(0, 1, 3, 2), :], closed=True, linewidth=1, edgecolor='c',
                            facecolor='none')  # fixed x
     pol2 = patches.Polygon(bbox_2d[(4, 5, 7, 6), :], closed=True, linewidth=1, edgecolor='c',
@@ -243,6 +279,29 @@ def draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax):
     ax.add_patch(pol4)
     ax.add_patch(pol5)
     ax.add_patch(pol6)
+
+
+def draw_polygon_thick(draw, xy, fill=None, outline=None):
+    draw.polygon(xy.flatten().tolist(), fill=fill, outline=outline)
+    draw.polygon((xy-1).flatten().tolist(), fill=fill, outline=outline)
+    draw.polygon((xy+1).flatten().tolist(), fill=fill, outline=outline)
+
+
+def draw_one_entity_3dbbox_pillow(row, view_matrix, proj_matrix, width, height, im):
+    bbox, bbox_2d = calculate_one_entity_bbox(row, view_matrix, proj_matrix, width, height)
+
+    draw = ImageDraw.Draw(im)
+    draw.rectangle(bbox[0, :].tolist() + bbox[1, :].tolist(), outline=colors.to_hex('y'))
+    draw.rectangle((bbox[0, :] + 1).tolist() + (bbox[1, :] + 1).tolist(), outline=colors.to_hex('y'))   # increase width
+
+    draw_polygon_thick(draw, bbox_2d[(0, 1, 3, 2), :], outline=colors.to_hex('c'))
+    draw_polygon_thick(draw, bbox_2d[(4, 5, 7, 6), :], outline=colors.to_hex('c'))
+    draw_polygon_thick(draw, bbox_2d[(0, 2, 6, 4), :], outline=colors.to_hex('c'))
+    draw_polygon_thick(draw, bbox_2d[(1, 3, 7, 5), :], outline=colors.to_hex('c'))
+    draw_polygon_thick(draw, bbox_2d[(0, 1, 5, 4), :], outline=colors.to_hex('r'))
+    draw_polygon_thick(draw, bbox_2d[(2, 3, 7, 6), :], outline=colors.to_hex('g'))
+
+    # im.paste(draw)
 
 
 def load_depth(name):
