@@ -292,7 +292,6 @@ def create_model_rot_matrix(rot):
         [sin(z), cos(z), 0],
         [0, 0, 1]
     ], dtype=np.float)
-    # result = Rx @ Ry @ Rz
     result = Rz @ Ry @ Rx
     return result
 

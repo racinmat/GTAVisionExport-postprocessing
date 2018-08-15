@@ -174,7 +174,7 @@ def show_bounding_boxes(name, size, ax):
     show_loaded_bounding_boxes(detections, size, ax)
 
 
-def draw3dbboxes(rgb, depth, data, fig):
+def draw3dbboxes(rgb, depth, stencil, data, fig):
     """
     :param rgb:
     :type rgb: ndarray
