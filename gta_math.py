@@ -292,7 +292,8 @@ def create_model_rot_matrix(rot):
         [sin(z), cos(z), 0],
         [0, 0, 1]
     ], dtype=np.float)
-    result = Rx @ Ry @ Rz
+    # result = Rx @ Ry @ Rz
+    result = Rz @ Ry @ Rx
     return result
 
 
@@ -351,7 +352,7 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
     # if row['bbox'][0] != [np.inf, np.inf]:
     #     return True
 
-    # calculating model_coords_to_ndc, so we have both anc and viewed points
+    # calculating model_coords_to_ndc, so we have both ndc and viewed points
     point_homo = np.array([points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
     model_matrix = construct_model_matrix(pos, rot)
     point_homo = model_matrix @ point_homo
@@ -376,6 +377,19 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
     if not in_ndc or not behind_near_clip:
         return False
 
+    # the 2d bbox, rectangle
+    bbox = np.array(calculate_2d_bbox(row, view_matrix, proj_matrix, width, height))
+    bbox[:, 0] *= width
+    bbox[:, 1] *= height
+    bbox = bbox.astype(np.int)
+
+    # checkin the stencil inside 2D bounding box
+    vehicle_stencil_ratio = 0.4  # at least 40% of pixels have to be vehicle stencil
+    vehicle_stencil_id = 2
+    stencil_in_bbox = stencil[bbox[1, 1]:bbox[0, 1], bbox[1, 0]:bbox[0, 0]]
+    if (stencil_in_bbox == vehicle_stencil_id).mean() < vehicle_stencil_ratio:
+        return False
+
     # test of obstacles, if 3d coord of point where middle of entity should be, is in correct depth
     pixel_pos = world_coords_to_pixel(pos, view_matrix, proj_matrix, width, height)
     pix_x, pix_y = pixel_pos.astype(int)
@@ -384,6 +398,7 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         # position is not in the image (e.g. partially visible objects)
         # so I can not evaluate it and thus I say it is ok, since this test is only for exclding some cars
         return True
+
 
     ndc_homo = np.array([ndc_x, ndc_y, depth[pix_y, pix_x], 1])[:, np.newaxis]
     view_homo = ndc_to_view(ndc_homo, proj_matrix)
@@ -414,13 +429,15 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
 #     num = np.dot( dap, dp )
 #     return (num / denom.astype(float))*db + b1
 
-def ccw(A,B,C):
-    return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+def ccw(a, b, c):
+    return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
 # Return true if line segments AB and CD intersect
+
+
 def are_intersecting(l1, l2):
-    A, B = l1
-    C, D = l2
-    return ccw(A,C,D) != ccw(B,C,D) and ccw(A,B,C) != ccw(A,B,D)
+    a, b = l1
+    c, d = l2
+    return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
 
 
 def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
@@ -428,11 +445,14 @@ def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
     rot = np.array(row['rot'])
     model_sizes = np.array(row['model_sizes'])
     points_3dbbox = get_model_3dbbox(model_sizes)
-    # calculating model_coords_to_ndc, so we have both anc and viewed points
-    point_homo = np.array([points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
+    # calculating model_coords_to_ndc, so we have both ndc and viewed points
+    points_3dbbox_homo = np.array([points_3dbbox[:, 0],
+                                   points_3dbbox[:, 1],
+                                   points_3dbbox[:, 2],
+                                   np.ones_like(points_3dbbox[:, 0])])
     model_matrix = construct_model_matrix(pos, rot)
-    point_homo = model_matrix @ point_homo
-    viewed = view_matrix @ point_homo
+    points_3dbbox_homo = model_matrix @ points_3dbbox_homo
+    viewed = view_matrix @ points_3dbbox_homo
     projected = proj_matrix @ viewed
     projected /= projected[3, :]
     bbox_3d = projected.T[:, 0:3]

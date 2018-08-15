@@ -204,12 +204,14 @@ def draw3dbboxes(rgb, depth, data, fig):
         draw_one_entity_3dbbox(row, view_matrix, proj_matrix, width, height, ax)
 
 
-def draw3dbboxes_pillow(rgb, depth, data):
+def draw3dbboxes_pillow(rgb, depth, stencil, data):
     """
     :param rgb:
     :type rgb: ndarray
     :param depth:
     :type depth: ndarray
+    :param stencil:
+    :type stencil: ndarray
     :param data:
     :type data: dict
     :param fig:

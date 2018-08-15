@@ -419,6 +419,30 @@ def try_simple_pointcloud_load_and_merge():
     # save_pointcloud_csv(big_pcl.T[:, 0:3], '{}/big-orig-poincloud-{}.csv'.format(out_directory, main_name))
 
 
+def try_one_car_3dbboxes(directory, base_name):
+    rgb_file = '{}/{}.jpg'.format(directory, base_name)
+    json_file = '{}/{}.json'.format(directory, base_name)
+    depth_file = '{}/{}-depth.png'.format(directory, base_name)
+    stencil_file = '{}/{}-stencil.png'.format(directory, base_name)
+
+    rgb = np.array(Image.open(rgb_file))
+    depth = np.array(Image.open(depth_file))
+    depth = depth / np.iinfo(np.uint16).max  # normalizing into NDC
+    stencil = np.array(Image.open(stencil_file))
+    with open(json_file, mode='r') as f:
+        data = json.load(f)
+    entities = data['entities']
+    view_matrix = np.array(data['view_matrix'])
+    proj_matrix = np.array(data['proj_matrix'])
+    width = data['width']
+    height = data['height']
+    # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
+    visible_cars = [e for e in entities if
+                    e['class'] != 'Trains' and is_entity_in_image(depth, stencil, e, view_matrix, proj_matrix, width, height)]
+
+    calculate_2d_bbox(visible_cars[1], view_matrix, proj_matrix, width, height)
+
+
 def create_rot_matrix(rot):
     x = np.radians(rot[0])
     y = np.radians(rot[1])
@@ -660,7 +684,11 @@ if __name__ == '__main__':
     # # name = files[0]
     # # base_name = get_base_name(name)
     # base_name = '2018-03-30--02-02-25--188'
-    # draw3dbboxes(in_directory, out_directory, base_name)
+
+    in_directory = r'D:\output-datasets\onroad-1'
+    base_name = '2018-08-13--21-05-07--241'
+    # draw3dbboxes(in_directory, base_name)
+    try_one_car_3dbboxes(in_directory, base_name)
 
     # proj_matrix = np.array([[1.21006660e+00, 0.00000000e+00, 0.00000000e+00,
     #                          0.00000000e+00],
@@ -685,4 +713,4 @@ if __name__ == '__main__':
     # try_pcl_subsampling_detailed()
     # try_simple_pointcloud_load_and_merge()
     # play_with_matrices()
-    try_videos()
+    # try_videos()
