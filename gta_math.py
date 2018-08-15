@@ -341,10 +341,10 @@ def model_coords_to_ndc(model_pos, model_rot, positions, view_matrix, proj_matri
     return projected.T[:, 0:3]
 
 
-def is_entity_in_image(depth, row, view_matrix, proj_matrix, width, height):
+def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height):
     pos = np.array(row['pos'])
     rot = np.array(row['rot'])
-
+    # todo: add entity visibility checking based on stencil data
     model_sizes = np.array(row['model_sizes'])
     points_3dbbox = get_model_3dbbox(model_sizes)
 

@@ -53,7 +53,7 @@ def draw3dbboxes(directory, base_name):
     height = data['height']
     # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
     visible_cars = [e for e in entities if
-                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix,
+                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, stencil, e, view_matrix,
                                                                                          proj_matrix, width, height)]
 
     print('camera pos: ', data['camera_pos'])
@@ -66,7 +66,7 @@ def draw3dbboxes(directory, base_name):
 
     for row in visible_cars:
         row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
-        is_entity_in_image(depth, row, view_matrix, proj_matrix, width, height)
+        is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height)
         # position in world coords
         # print(row)
         pos = np.array(row['pos'])
@@ -145,7 +145,7 @@ def draw_car_pixels(in_directory, out_directory, base_name):
     height = data['height']
     # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
     visible_cars = [e for e in entities if
-                    e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix, proj_matrix, width, height)]
+                    e['class'] != 'Trains' and is_entity_in_image(depth, stencil, e, view_matrix, proj_matrix, width, height)]
 
     params = {
         'width': width,

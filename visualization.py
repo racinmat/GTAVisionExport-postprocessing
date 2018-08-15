@@ -1,5 +1,6 @@
 import os
 from configparser import ConfigParser
+from functools import lru_cache
 import numpy as np
 import re
 from PIL import Image, ImageFile, ImageDraw
@@ -18,6 +19,7 @@ from gta_math import construct_view_matrix, construct_proj_matrix, points_to_hom
     construct_model_matrix
 from matplotlib.pyplot import Figure
 from numpy import ndarray
+
 
 def get_connection():
     """
@@ -190,7 +192,7 @@ def draw3dbboxes(rgb, depth, data, fig):
     height = data['height']
     # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
     visible_cars = [e for e in entities if
-                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix,
+                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, stencil, e, view_matrix,
                                                                                          proj_matrix, width, height)]
 
     print('camera pos: ', data['camera_pos'])
@@ -220,7 +222,7 @@ def draw3dbboxes_pillow(rgb, depth, data):
     height = data['height']
     # visible_cars = [e for e in entities if e['bbox'][0] != [np.inf, np.inf] and e['type'] == 'car']
     visible_cars = [e for e in entities if
-                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, e, view_matrix,
+                    e['type'] == 'car' and e['class'] != 'Trains' and is_entity_in_image(depth, stencil, e, view_matrix,
                                                                                          proj_matrix, width, height)]
 
     im = Image.fromarray(rgb)
@@ -301,8 +303,6 @@ def draw_one_entity_3dbbox_pillow(row, view_matrix, proj_matrix, width, height, 
     draw_polygon_thick(draw, bbox_2d[(0, 1, 5, 4), :], outline=colors.to_hex('r'))
     draw_polygon_thick(draw, bbox_2d[(2, 3, 7, 6), :], outline=colors.to_hex('g'))
 
-    # im.paste(draw)
-
 
 def load_depth(name):
     if name not in depths:
@@ -355,6 +355,61 @@ def show_bboxes(name):
     plt.imshow(im)
     show_bounding_boxes(name, size, plt.gca())
     plt.savefig(os.path.join(out_directory, 'bboxes-' + name + '.jpg'))
+
+
+@lru_cache(maxsize=8)
+def get_first_record_timestamp_in_run(run_id):
+    conn = get_connection_pooled()
+    cur = conn.cursor()
+    cur.execute("""SELECT min(timestamp) as timestamp 
+        FROM snapshots 
+        WHERE run_id = {} 
+        LIMIT 1 
+        """.format(run_id))
+    return cur.fetchone()['timestamp']
+
+
+def is_first_record_in_run(res, run_id):
+    first_timestamp = get_first_record_timestamp_in_run(run_id)
+    return first_timestamp == res['timestamp']
+
+
+def get_previous_record(res):
+    conn = get_connection_pooled()
+    cur = conn.cursor()
+    cur.execute("""SELECT imagepath, snapshot_id, scene_id 
+        FROM snapshots 
+        WHERE timestamp < '{}' and run_id = (SELECT run_id from snapshots WHERE snapshot_id = {}) 
+        ORDER BY timestamp DESC 
+        LIMIT 1 
+        """.format(res['timestamp'], res['snapshot_id']))
+    # this should select previous record independently on primary key, without problems
+    # with race conditions by persisting in other threads
+    # and belonging into the same run
+    results = []
+    for row in cur:
+        res = dict(row)
+        results.append(res)
+    if len(results) == 0:
+        print('no previous record for snapshot_id {}'.format(res['snapshot_id']))
+    return results[0]['imagepath']
+
+
+def are_buffers_same_as_previous(res):
+    name = res['imagepath']
+    depth = load_depth(name)
+    stencil = load_stencil(name)
+    prev_name = get_previous_record(res)
+    prev_depth = load_depth(prev_name)
+    prev_stencil = load_stencil(prev_name)
+    return (depth == prev_depth).all() or (stencil == prev_stencil).all()
+
+
+def camera_to_string(res):
+    return 'camera_{}__{}'.format(
+        '_'.join(['{:0.2f}'.format(i) for i in res['camera_relative_position']]),
+        '_'.join(['{:0.2f}'.format(i) for i in res['camera_relative_rotation']]),
+    )
 
 
 def main():
