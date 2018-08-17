@@ -414,6 +414,10 @@ def camera_to_string(res):
     )
 
 
+def get_dataset_filename_wildcard():
+    return '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9]-[0-9][0-9]-[0-9][0-9]--[0-9][0-9][0-9]'
+
+
 def main():
     files = [
         # 'info-2017-11-14--17-48-28',

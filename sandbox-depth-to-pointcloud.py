@@ -27,5 +27,5 @@ data['view_matrix'] = np.array(data['view_matrix'])
 
 vecs, _ = points_to_homo(data, depth, tresholding=False)
 vecs_p = ndc_to_view(vecs, np.array(data['proj_matrix']))
-vecs_p_world = view_to_world(vecs, np.array(data['view_matrix']))
+vecs_p_world = view_to_world(vecs_p, np.array(data['view_matrix']))
 save_csv(vecs_p, 'my-points-'+file_name)

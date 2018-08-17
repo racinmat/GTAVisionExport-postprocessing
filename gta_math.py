@@ -535,3 +535,31 @@ def grid_to_ndc_pcl_with_lut(bool_grid, ndc_z):
     # we can map x and y linearly, but we need to z map hyperbolically, so we use LUT
     points[:, 2] = ndc_z[points[:, 2].astype(np.int32)]
     return points
+
+
+def model_rot_matrix_to_euler_angles(r):
+    sy = np.sqrt(r[0, 0] ** 2 + r[1, 0] ** 2)
+    singular = abs(sy) < 1e-6
+    if not singular:
+        x = np.arctan2(r[2, 1], r[2, 2])
+        y = np.arctan2(-r[2, 0], sy)
+        z = np.arctan2(r[1, 0], r[0, 0])
+    else:
+        x = np.arctan2(-r[1, 2], r[1, 1])
+        y = np.arctan2(-r[2, 0], sy)
+        z = 0
+    return np.degrees(np.array([x, y, z]))
+
+
+def rot_matrix_to_euler_angles(r):
+    sy = np.sqrt(r[0, 0] * r[0, 0] + r[1, 0] * r[1, 0])
+    singular = abs(sy) < 1e-6
+    if not singular:
+        x = np.arctan2(-r[2, 2], r[2, 1])
+        y = np.arctan2(-r[2, 0], sy)
+        z = np.arctan2(r[0, 1], r[0, 0])
+    else:
+        x = np.arctan2(-r[1, 2], r[1, 1])
+        y = np.arctan2(-r[2, 0], sy)
+        z = 0
+    return np.degrees(np.array([x, y, z]))
