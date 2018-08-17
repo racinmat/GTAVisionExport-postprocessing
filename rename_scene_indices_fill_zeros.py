@@ -33,7 +33,7 @@ def get_base_name(name):
 
 
 def get_files(run_directory, camera_dir, suffix):
-    return glob.glob(osp.join(run_directory, camera_dir, visualization.get_dataset_filename_wildcard() + suffix))
+    return glob.glob(osp.join(run_directory, camera_dir, '*[0-9]' + suffix))
 
 
 def main():
@@ -61,7 +61,10 @@ def main():
 
     # at first, I find the run_id by checking first image name
     cur: cursor = conn.cursor()
-    imagepath = get_base_name(glob.glob(osp.join(sample_file_path, '*.jpg'))[0])
+    json_name = glob.glob(osp.join(sample_file_path, '*.json'))[0]
+    with open(json_name) as f:
+        data = json.load(f)
+    imagepath = data['imagepath']
 
     cur.execute("""SELECT run_id
           FROM snapshots \
@@ -80,28 +83,17 @@ def main():
           ORDER BY min(timestamp) ASC
         """, {'run_id': run_id})
 
-    scenes = {}
+    old_scenes = {}
+    new_scenes = {}
     for i, row in enumerate(cur):
-        scenes[row['scene_id']] = f'{i:06}'  # prepend zeros to 5 places
-
-    # then I take all imagepaths for all scene ids
-    cur = conn.cursor()
-
-    cur.execute("""SELECT scene_id, imagepath
-          FROM snapshots \
-          WHERE run_id = %(run_id)s
-          ORDER BY timestamp ASC
-        """, {'run_id': run_id})
-
-    file_names = {}
-    for i, row in enumerate(cur):
-        file_names[row['imagepath']] = row['scene_id']
+        old_scenes[str(i)] = row['scene_id']
+        new_scenes[row['scene_id']] = f'{i:06}'
 
     print('everything loaded, starting renaming')
     widgets = [progressbar.Percentage(), ' ', progressbar.Counter(), ' ', progressbar.Bar(), ' ',
                progressbar.FileTransferSpeed()]
 
-    pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(file_names) * 4).start()
+    pbar = progressbar.ProgressBar(widgets=widgets, maxval=len(old_scenes) * 6 * 4).start()
     counter = 0
 
     # I know directory structure is root/cam_index/files
@@ -120,7 +112,7 @@ def main():
                 counter += 1
                 pbar.update(counter)
                 old_name = osp.join(run_directory, camera_dir, basename+suffix)
-                new_name = osp.join(run_directory, camera_dir, scenes[file_names[basename]]+suffix)
+                new_name = osp.join(run_directory, camera_dir, new_scenes[old_scenes[basename]]+suffix)
                 os.rename(old_name, new_name)
 
     pbar.finish()
