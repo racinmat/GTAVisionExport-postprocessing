@@ -322,7 +322,7 @@ def get_model_3dbbox(model_sizes):
     return points_3dbbox
 
 
-def model_coords_to_world(model_pos, model_rot, positions, view_matrix, proj_matrix, width, height):
+def model_coords_to_world(model_pos, model_rot, positions):
     point_homo = np.array([positions[:, 0], positions[:, 1], positions[:, 2], np.ones_like(positions[:, 0])])
     model_matrix = construct_model_matrix(model_pos, model_rot)
     world_point_homo = model_matrix @ point_homo
@@ -331,7 +331,7 @@ def model_coords_to_world(model_pos, model_rot, positions, view_matrix, proj_mat
     return world_point_homo.T[:, 0:3]
 
 
-def model_coords_to_ndc(model_pos, model_rot, positions, view_matrix, proj_matrix, width, height):
+def model_coords_to_ndc(model_pos, model_rot, positions, view_matrix, proj_matrix):
     point_homo = np.array([positions[:, 0], positions[:, 1], positions[:, 2], np.ones_like(positions[:, 0])])
     model_matrix = construct_model_matrix(model_pos, model_rot)
     point_homo = model_matrix @ point_homo
