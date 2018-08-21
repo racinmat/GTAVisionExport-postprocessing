@@ -4,8 +4,10 @@ import os
 import numpy as np
 from PIL import Image
 
+import visualization
 from gta_math import calculate_2d_bbox, construct_model_matrix, get_model_3dbbox, is_entity_in_image, \
-    model_coords_to_pixel, construct_view_matrix, create_rot_matrix
+    model_coords_to_pixel, construct_view_matrix, create_rot_matrix, rot_matrix_to_euler_angles, \
+    create_model_rot_matrix, model_rot_matrix_to_euler_angles
 
 
 def vehicle_type_gta_to_toyota(gta_type):
@@ -130,22 +132,30 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
 
 def get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot):
     cam_pos = np.concatenate((cam_pos, [1]))
+    cam_rel_pos = np.concatenate((cam_rel_pos, [1]))
     # cam_to_car_m = construct_view_matrix(cam_rel_pos, -cam_rel_rot)
 
+    cam_rot_m = create_rot_matrix(cam_rot)
+    cam_rel_rot_m = create_model_rot_matrix(cam_rel_rot)
+    car_rot_matrix = cam_rel_rot_m.T @ cam_rot_m
     view_matrix = np.zeros((4, 4))
     # view_matrix[0:3, 3] = camera_pos
-    view_matrix[0:3, 0:3] = create_rot_matrix(cam_rot) @ create_rot_matrix(cam_rel_rot)
+    view_matrix[0:3, 0:3] = car_rot_matrix
+    # view_matrix[0:3, 0:3] = create_rot_matrix(cam_rot)
     view_matrix[3, 3] = 1
 
-    trans_matrix = np.eye(4)
-    trans_matrix[0:3, 3] = -cam_rel_pos
+    # trans_matrix = np.eye(4)
+    # trans_matrix[0:3, 3] = -cam_rel_pos
+
 
     # return view_matrix
-    cam_to_car_m = trans_matrix @ view_matrix
+    # cam_to_car_m = trans_matrix @ view_matrix
+    cam_to_car_m = view_matrix
     # todo: dodělat získávání rotace a vůbec věci
-    car_pos = cam_to_car_m @ cam_pos
+    car_pos = cam_to_car_m @ cam_rel_pos
     car_pos /= car_pos[3]
-    return car_pos[0:3]
+    car_pos += cam_pos
+    return car_pos[0:3], model_rot_matrix_to_euler_angles(car_rot_matrix)
 
 
 def location_to_toyota(entity, my_car_position, my_car_rotation):
@@ -297,7 +307,7 @@ def json_to_toyota_format(data, depth, stencil):
     return '\r\n'.join(lines)
 
 
-if __name__ == '__main__':
+def try_json_to_toyota():
     directory = r'D:\output-datasets\onroad-3'
     # base_name = '2018-07-31--18-03-24--143'
     base_name = '2018-07-31--17-37-21--852'
@@ -310,3 +320,43 @@ if __name__ == '__main__':
     with open(json_file) as f:
         data = json.load(f)
     json_to_toyota_format(data, depth, stencil)
+
+
+def try_cameras_to_car():
+    conn = visualization.get_connection()
+    cur = conn.cursor()
+    directory = r'D:\output-datasets\onroad-3'
+    # base_name = '2018-07-31--18-03-24--143'
+    base_name = '2018-07-31--17-37-21--852'
+
+    cur.execute("""SELECT imagepath, player_pos FROM snapshots_view
+    WHERE scene_id = (SELECT scene_id
+                FROM snapshots_view
+                WHERE imagepath = %(imagepath)s)
+                """, {'imagepath': base_name})
+
+    results = []
+    for row in cur:
+        results.append(dict(row))
+
+    for res in results:
+        json_file = os.path.join(directory, '{}.json'.format(res['imagepath']))
+        with open(json_file) as f:
+            data = json.load(f)
+
+        cam_pos = np.array(data['camera_pos'])
+        cam_rot = np.array(data['camera_rot'])
+        cam_rel_pos = np.array(data['camera_relative_position'])
+        cam_rel_rot = np.array(data['camera_relative_rotation'])
+        pos, rot = get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
+        # print('cam pos', cam_pos)
+        # print('calc car pos', pos)
+        # print('car pos', res['player_pos'])
+        print('cam rot', cam_rot)
+        print('cam rel rot', cam_rel_rot)
+        print('calc car rot', rot)
+
+
+if __name__ == '__main__':
+    # try_json_to_toyota()
+    try_cameras_to_car()

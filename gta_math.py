@@ -550,16 +550,31 @@ def model_rot_matrix_to_euler_angles(r):
         z = 0
     return np.degrees(np.array([x, y, z]))
 
-
 def rot_matrix_to_euler_angles(r):
-    sy = np.sqrt(r[0, 0] * r[0, 0] + r[1, 0] * r[1, 0])
+    sy = np.sqrt(r[0, 0] ** 2 + r[0, 1] ** 2)
     singular = abs(sy) < 1e-6
     if not singular:
-        x = np.arctan2(-r[2, 2], r[2, 1])
-        y = np.arctan2(-r[2, 0], sy)
+        x = np.arctan2(-r[2, 2], r[1, 2])
+        y = np.arctan2(-r[0, 2], sy)
         z = np.arctan2(r[0, 1], r[0, 0])
     else:
-        x = np.arctan2(-r[1, 2], r[1, 1])
-        y = np.arctan2(-r[2, 0], sy)
-        z = 0
+        x = np.arctan2(-r[2, 0], r[1, 0])
+        y = np.arctan2(-r[0, 2], sy)
+        z = 0   # arbitrarily set because this singular solution leads to x and z rotating around same axis
     return np.degrees(np.array([x, y, z]))
+
+
+def car_and_relative_cam_to_absolute_cam_rotation_matrix(car_rot, cam_rel_rot):
+    world_to_view_m = create_rot_matrix(np.array([0., 0., 0.]))
+    cam_rel_rot_m = create_model_rot_matrix(cam_rel_rot)
+    car_rot_m = create_model_rot_matrix(car_rot)
+    cam_rot_m = world_to_view_m @ cam_rel_rot_m.T @ car_rot_m.T
+    return cam_rot_m
+
+
+def relative_and_absolute_camera_to_car_rotation_matrix(cam_rot, cam_rel_rot):
+    cam_rot_m = create_rot_matrix(cam_rot)
+    cam_rel_rot_m = create_model_rot_matrix(cam_rel_rot)
+    calced_cam_rot_m = (correct_car_rot_m @ cam_rel_rot_m @ world_to_view_m.T).T
+    return car_rot_m
+
