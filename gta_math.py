@@ -550,6 +550,7 @@ def model_rot_matrix_to_euler_angles(r):
         z = 0
     return np.degrees(np.array([x, y, z]))
 
+
 def rot_matrix_to_euler_angles(r):
     sy = np.sqrt(r[0, 0] ** 2 + r[0, 1] ** 2)
     singular = abs(sy) < 1e-6
@@ -573,8 +574,10 @@ def car_and_relative_cam_to_absolute_cam_rotation_matrix(car_rot, cam_rel_rot):
 
 
 def relative_and_absolute_camera_to_car_rotation_matrix(cam_rot, cam_rel_rot):
+    world_to_view_m = create_rot_matrix(np.array([0., 0., 0.]))
+    # cam_rot_m = create_model_rot_matrix(cam_rot)
     cam_rot_m = create_rot_matrix(cam_rot)
     cam_rel_rot_m = create_model_rot_matrix(cam_rel_rot)
-    calced_cam_rot_m = (correct_car_rot_m @ cam_rel_rot_m @ world_to_view_m.T).T
+    car_rot_m = cam_rot_m.T @ world_to_view_m @ cam_rel_rot_m.T
     return car_rot_m
 
