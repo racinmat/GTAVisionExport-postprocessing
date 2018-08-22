@@ -398,7 +398,6 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         # so I can not evaluate it and thus I say it is ok, since this test is only for exclding some cars
         return True
 
-
     ndc_homo = np.array([ndc_x, ndc_y, depth[pix_y, pix_x], 1])[:, np.newaxis]
     view_homo = ndc_to_view(ndc_homo, proj_matrix)
     world_homo = view_to_world(view_homo, view_matrix)
@@ -581,3 +580,19 @@ def relative_and_absolute_camera_to_car_rotation_matrix(cam_rot, cam_rel_rot):
     car_rot_m = cam_rot_m.T @ world_to_view_m @ cam_rel_rot_m.T
     return car_rot_m
 
+
+def relative_and_absolute_camera_to_car_rotation_angles(cam_rot, cam_rel_rot):
+    r = relative_and_absolute_camera_to_car_rotation_matrix(cam_rot, cam_rel_rot)
+    return model_rot_matrix_to_euler_angles(r)
+
+
+def car_and_relative_cam_to_absolute_cam_position(car_pos, car_rot, cam_rel_pos):
+    car_matrix = construct_model_matrix(car_pos, car_rot)
+    cam_rel_pos = np.concatenate((cam_rel_pos, [1]))
+    cam_pos = car_matrix @ cam_rel_pos
+    cam_pos /= cam_pos[3]
+    return cam_pos[0:3]
+
+# todo: dodělat transfer do toyoty
+# todo: začít sbírat i polohu a rotaci auta
+# todo: podívat se pořádně na ty pointcloudy
