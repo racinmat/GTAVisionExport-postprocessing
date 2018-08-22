@@ -688,34 +688,34 @@ def try_scene_to_pointcloud():
             data = json.load(f)
         # print(data['scene_id'])
 
-        # view_matrix = np.array(data['view_matrix'])
-        # proj_matrix = np.array(data['proj_matrix'])
-
-        conn = visualization.get_connection()
-        cur = conn.cursor()
-        cur.execute("""SELECT scene_id 
-            FROM snapshots_view
-            WHERE imagepath = %(imagepath)s 
-            """, {'imagepath': file_name})
-
-        scene_id = cur.fetchone()['scene_id']
-
-        cur = conn.cursor()
-        cur.execute("""SELECT camera_rot, player_pos
-                    FROM snapshots_view
-                    WHERE scene_id = %(scene_id)s AND camera_relative_rotation = ARRAY[0,0,0]::double precision[]
-                    LIMIT 1
-                    """, {'scene_id': scene_id})
-
-        result = cur.fetchone()
-        car_rotation = np.array(result['camera_rot'])
-        car_position = np.array(result['player_pos'])
-
-        calc_cam_position = car_and_relative_cam_to_absolute_cam_position(car_position, car_rotation, data['camera_relative_position'])
-        calc_cam_rotation = car_and_relative_cam_to_absolute_cam_rotation_matrix(car_rotation, data['camera_relative_rotation'])
-
-        view_matrix = construct_view_matrix(calc_cam_position, calc_cam_rotation)
+        view_matrix = np.array(data['view_matrix'])
         proj_matrix = np.array(data['proj_matrix'])
+
+        # conn = visualization.get_connection()
+        # cur = conn.cursor()
+        # cur.execute("""SELECT scene_id
+        #     FROM snapshots_view
+        #     WHERE imagepath = %(imagepath)s
+        #     """, {'imagepath': file_name})
+        #
+        # scene_id = cur.fetchone()['scene_id']
+        #
+        # cur = conn.cursor()
+        # cur.execute("""SELECT camera_rot, player_pos
+        #             FROM snapshots_view
+        #             WHERE scene_id = %(scene_id)s AND camera_relative_rotation = ARRAY[0,0,0]::double precision[]
+        #             LIMIT 1
+        #             """, {'scene_id': scene_id})
+        #
+        # result = cur.fetchone()
+        # car_rotation = np.array(result['camera_rot'])
+        # car_position = np.array(result['player_pos'])
+        #
+        # calc_cam_position = car_and_relative_cam_to_absolute_cam_position(car_position, car_rotation, data['camera_relative_position'])
+        # calc_cam_rotation = car_and_relative_cam_to_absolute_cam_rotation_angles(car_rotation, data['camera_relative_rotation'])
+        #
+        # view_matrix = construct_view_matrix(calc_cam_position, calc_cam_rotation)
+        # proj_matrix = np.array(data['proj_matrix'])
 
         depth_to_csv(depth, data, csv_name, view_matrix, proj_matrix)
 
@@ -723,7 +723,7 @@ def try_scene_to_pointcloud():
         vecs, _ = points_to_homo(data, depth, tresholding=False)
         vecs_p = ndc_to_view(vecs, proj_matrix)
         vecs_p_world = view_to_world(vecs_p, view_matrix)
-        save_csv(vecs_p_world, csv_name)
+        save_csv(vecs_p_world[0:3, :].T, csv_name)
 
     process_frame_tiff(r'D:\output-datasets\offroad-7\0', '2018-08-13--11-15-01--499', 'my-points-0-tiff-orig')
     process_frame_tiff(r'D:\output-datasets\offroad-7\1', '2018-08-13--11-15-01--860', 'my-points-1-tiff-orig')

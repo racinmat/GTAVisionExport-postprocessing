@@ -151,6 +151,7 @@ def get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
     # return view_matrix
     # cam_to_car_m = trans_matrix @ view_matrix
     cam_to_car_m = view_matrix
+    relat
     # todo: dodělat získávání rotace a vůbec věci
     car_pos = cam_to_car_m @ cam_rel_pos
     car_pos /= car_pos[3]
