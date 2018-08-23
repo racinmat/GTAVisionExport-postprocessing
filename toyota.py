@@ -7,7 +7,8 @@ from PIL import Image
 import visualization
 from gta_math import calculate_2d_bbox, construct_model_matrix, get_model_3dbbox, is_entity_in_image, \
     model_coords_to_pixel, construct_view_matrix, create_rot_matrix, rot_matrix_to_euler_angles, \
-    create_model_rot_matrix, model_rot_matrix_to_euler_angles
+    create_model_rot_matrix, model_rot_matrix_to_euler_angles, relative_and_absolute_camera_to_car_rotation_angles, \
+    relative_and_absolute_camera_to_car_position, model_coords_to_world
 
 
 def vehicle_type_gta_to_toyota(gta_type):
@@ -91,15 +92,24 @@ def vehicle_type_gta_to_toyota(gta_type):
         'AGRICULTURE': 11,
         'OTHER': 12,
     }
-    return str(name_to_number[mapping[gta_type]])
+    return name_to_number[mapping[gta_type]]
 
 
-def get_3d_bbox_projected_to_2d(entity, view_matrix, proj_matrix, width, height):
+def get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, height):
     model_sizes = np.array(entity['model_sizes'])
     points_3dbbox = get_model_3dbbox(model_sizes)
     point_homo = np.array(
         [points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
     bbox_3d = model_coords_to_pixel(entity['pos'], entity['rot'], point_homo.T, view_matrix, proj_matrix, width, height)
+    return bbox_3d
+
+
+def get_3d_bbox_projected_to_world(entity, view_matrix, proj_matrix, width, height):
+    model_sizes = np.array(entity['model_sizes'])
+    points_3dbbox = get_model_3dbbox(model_sizes)
+    point_homo = np.array(
+        [points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
+    bbox_3d = model_coords_to_world(entity['pos'], entity['rot'], point_homo.T)
     return bbox_3d
 
 
@@ -131,50 +141,76 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
 
 
 def get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot):
-    cam_pos = np.concatenate((cam_pos, [1]))
-    cam_rel_pos = np.concatenate((cam_rel_pos, [1]))
-    # cam_to_car_m = construct_view_matrix(cam_rel_pos, -cam_rel_rot)
-
-    cam_rot_m = create_rot_matrix(cam_rot)
-    cam_rel_rot_m = create_model_rot_matrix(cam_rel_rot)
-    car_rot_matrix = cam_rel_rot_m.T @ cam_rot_m
-    view_matrix = np.zeros((4, 4))
-    # view_matrix[0:3, 3] = camera_pos
-    view_matrix[0:3, 0:3] = car_rot_matrix
-    # view_matrix[0:3, 0:3] = create_rot_matrix(cam_rot)
-    view_matrix[3, 3] = 1
-
-    # trans_matrix = np.eye(4)
-    # trans_matrix[0:3, 3] = -cam_rel_pos
+    car_pos = relative_and_absolute_camera_to_car_position(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
+    car_rot = relative_and_absolute_camera_to_car_rotation_angles(cam_rot, cam_rel_rot)
+    return car_pos, car_rot
 
 
-    # return view_matrix
-    # cam_to_car_m = trans_matrix @ view_matrix
-    cam_to_car_m = view_matrix
-    relat
-    # todo: dodělat získávání rotace a vůbec věci
-    car_pos = cam_to_car_m @ cam_rel_pos
-    car_pos /= car_pos[3]
-    car_pos += cam_pos
-    return car_pos[0:3], model_rot_matrix_to_euler_angles(car_rot_matrix)
-
-
-def location_to_toyota(entity, my_car_position, my_car_rotation):
+def entity_gta_location_to_toyota_location_world(entity):
     """
-    Returns location of vehicle relatively to the ego car center.
-    Car center is calculated from camera position and camera relative position and rotation, and thus is same
-    for all cameras, rotation is taken as ego vehicle rotation, which is calculated from camera rotation and camera relative rotation
+    Gta center is somewhere in car, toyota center is in middle of car on ground. This transfer world gta car position
+    into the world toyota car position
     """
     x_min, x_max, y_min, y_max, z_min, z_max = entity['model_sizes']
     gta_center_to_corner = np.array([x_min, y_min, z_min])
     corner_to_toyota_center = np.array([(x_max - x_min) / 2, (y_max - y_min) / 2, 0])
     gta_center_to_toyota_center = gta_center_to_corner + corner_to_toyota_center
-    # location is relative to the car center
-    world_location = entity['pos'] + gta_center_to_toyota_center
+    rot = create_model_rot_matrix(entity['rot'])
+    world_location = entity['pos'] + rot @ gta_center_to_toyota_center
+    return world_location
+
+
+def location_to_toyota_ego(entity, my_car_position, my_car_rotation):
+    """
+    Returns location of vehicle relatively to the ego car center.
+    Car center is calculated from camera position and camera relative position and rotation, and thus is same
+    for all cameras, rotation is taken as ego vehicle rotation, which is calculated from camera rotation and camera relative rotation
+    """
+    world_location = entity_gta_location_to_toyota_location_world(entity)
+
     world_to_car_m = construct_view_matrix(my_car_position, my_car_rotation)
+    world_location = np.concatenate((world_location, [1]))
     view_location = (world_to_car_m @ world_location)
     view_location /= view_location[3]
     return view_location[0:3]
+
+
+def vehicle_rotation_relative_to_my_car(entity_rotation, my_car_rotation):
+    entity_m = create_model_rot_matrix(entity_rotation)
+    my_car_m = create_model_rot_matrix(my_car_rotation)
+    relative_m = entity_m @ my_car_m.T
+    relative_rot = model_rot_matrix_to_euler_angles(relative_m)
+    return relative_rot
+
+
+def vehicle_rotation_relative_to_camera(entity_rotation, camera_rotation):
+    entity_m = create_model_rot_matrix(entity_rotation)
+    camera_m = create_rot_matrix(camera_rotation)
+    relative_m = entity_m @ camera_m
+    relative_rot = rot_matrix_to_euler_angles(relative_m)
+    return relative_rot
+
+
+def bbox_3d_side_to_normal_vector(points):
+    pass
+
+
+def is_side_visible(points, camera_position, camera_rotation):
+    """
+    Decides whether the 3d bounding box side is visible or not.
+    Based on dot product of camera (camera direction vector) and side plane normal.
+    todo: zjistit, zda má být vidět celá strana nebo jenom část
+    vzít paprsek z kamery do středu čtverce a dot product s normálou plochy toho čtverce
+    to určí, zda by to bylo vidět na kameře co má záběr vše, pak musím otestovatasi přes NDC, zda je ve viditelnén jehlanu kamery
+
+    :param points: points in world coordinates, 3D
+    :param camera_position: in world coordinates, 3D
+    :param camera_rotation: in world coordinates, 3D
+    :return:
+    """
+    side_middle = np.mean(points, axis=1)  # need to calculate it by mean, because the square is projected, it is not square anymore,
+    # in the 2D, it is generally convex quadrilateral
+    # camera_to_side_middle = side_middle -
 
 
 def json_to_toyota_format(data, depth, stencil):
@@ -253,45 +289,54 @@ def json_to_toyota_format(data, depth, stencil):
         # location je bod na zemi pod středem auta, takže je třeba to napočítat posunem v rámci 3d bounding boxu
         # location is relative to the car center
         my_car_position, my_car_rotation = get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
-        location_to_toyota(entity, my_car_position, my_car_rotation)
-        location_x = 0
-        location_y = 0
-        location_z = 0
-        heading = 0  # heading je vůči autě nezávisle na kameře
-        distance = 0  # bráno na střed auta v location
-        orientation = 0  # todo: ujistit se: po směru hodinových ručiček? (jet vpravo znamená 90° a vlevo 270°?). Vzít rotaci auta, rotaci kamery transponovanou, znásobit matice a vymlátit z toho úhly
+        location = location_to_toyota_ego(entity, my_car_position, my_car_rotation)
+        # gta camera view: the coordinate system is X to the right, Y up and Z backward)
+        # toyota: the coordinate system is X to the right, Y forward and Z up)
+        location_x = location[0]
+        location_y = -location[2]
+        location_z = location[1]
+
+        vehicle_rotation = vehicle_rotation_relative_to_my_car(entity['rot'], my_car_rotation)
+        heading = 360 - vehicle_rotation[2]  # heading je vůči autě nezávisle na kameře
+        distance = np.linalg.norm(location)  # bráno na střed auta v location
+
+        vehicle_rotation_cam = vehicle_rotation_relative_to_camera(entity['rot'], data['camera_rot'])
+        orientation = 360 - vehicle_rotation_cam[2]  # 0 je v mém směru, úhly po směru hodinových ručiček (90 když vidím zprava, 0 zezadu, 180 zepředu), vůči kameře
         bbox_2d = np.array(calculate_2d_bbox(entity, view_matrix, proj_matrix, width, height))
         bbox_2d[:, 0] *= width
         bbox_2d[:, 1] *= height
 
-        bbox_3d = get_3d_bbox_projected_to_2d(entity, view_matrix, proj_matrix, width, height)
+        bbox_3d_pixel = get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, height)
+        bbox_3d_world = get_3d_bbox_projected_to_world(entity, view_matrix, proj_matrix, width, height)
 
         bbox_2d_left = bbox_2d[1, 0]
         bbox_2d_top = bbox_2d[1, 1]
         bbox_2d_right = bbox_2d[0, 0]
         bbox_2d_bottom = bbox_2d[0, 1]
-        side_visibility_rear = 0
-        side_visibility_front = 0
-        side_visibility_left = 0
-        side_visibility_right = 0
+
+        side_visibility_rear = is_side_visible(bbox_3d_world[(0, 1, 5, 4), :], cam_pos, cam_rot)
+        side_visibility_front = is_side_visible(bbox_3d_world[(2, 3, 7, 6), :], cam_pos, cam_rot)
+        side_visibility_left = is_side_visible(bbox_3d_world[(0, 1, 3, 2), :], cam_pos, cam_rot)
+        side_visibility_right = is_side_visible(bbox_3d_world[(4, 5, 7, 6), :], cam_pos, cam_rot)
+
         # todo: to pořadí je po zrotování, ale nebo původního modelu před rotací?
         # front left ground
-        bbox_3d_flg_x = bbox_3d[0, 0]
-        bbox_3d_flg_y = bbox_3d[0, 1]
-        bbox_3d_frg_x = bbox_3d[1, 0]
-        bbox_3d_frg_y = bbox_3d[1, 1]
-        bbox_3d_rlg_x = bbox_3d[2, 0]
-        bbox_3d_rlg_y = bbox_3d[2, 1]
-        bbox_3d_rrg_x = bbox_3d[3, 0]
-        bbox_3d_rrg_y = bbox_3d[3, 1]
-        bbox_3d_flt_x = bbox_3d[4, 0]
-        bbox_3d_flt_y = bbox_3d[4, 1]
-        bbox_3d_frt_x = bbox_3d[5, 0]
-        bbox_3d_frt_y = bbox_3d[5, 1]
-        bbox_3d_rlt_x = bbox_3d[6, 0]
-        bbox_3d_rlt_y = bbox_3d[6, 1]
-        bbox_3d_rrt_x = bbox_3d[7, 0]
-        bbox_3d_rrt_y = bbox_3d[7, 1]
+        bbox_3d_flg_x = bbox_3d_pixel[0, 0]
+        bbox_3d_flg_y = bbox_3d_pixel[1, 0]
+        bbox_3d_frg_x = bbox_3d_pixel[0, 1]
+        bbox_3d_frg_y = bbox_3d_pixel[1, 1]
+        bbox_3d_rlg_x = bbox_3d_pixel[0, 2]
+        bbox_3d_rlg_y = bbox_3d_pixel[1, 2]
+        bbox_3d_rrg_x = bbox_3d_pixel[0, 3]
+        bbox_3d_rrg_y = bbox_3d_pixel[1, 3]
+        bbox_3d_flt_x = bbox_3d_pixel[0, 4]
+        bbox_3d_flt_y = bbox_3d_pixel[1, 4]
+        bbox_3d_frt_x = bbox_3d_pixel[0, 5]
+        bbox_3d_frt_y = bbox_3d_pixel[1, 5]
+        bbox_3d_rlt_x = bbox_3d_pixel[0, 6]
+        bbox_3d_rlt_y = bbox_3d_pixel[1, 6]
+        bbox_3d_rrt_x = bbox_3d_pixel[0, 7]
+        bbox_3d_rrt_y = bbox_3d_pixel[1, 7]
         # rear right top
 
         line_data = [vehicle_id, annotation_status, oclussion_level, out_of_image_level, vehicle_category,
@@ -302,25 +347,72 @@ def json_to_toyota_format(data, depth, stencil):
                      bbox_3d_flg_x, bbox_3d_flg_y, bbox_3d_frg_x, bbox_3d_frg_y, bbox_3d_rlg_x, bbox_3d_rlg_y,
                      bbox_3d_rrg_x, bbox_3d_rrg_y, bbox_3d_flt_x, bbox_3d_flt_y, bbox_3d_frt_x, bbox_3d_frt_y,
                      bbox_3d_rlt_x, bbox_3d_rlt_y, bbox_3d_rrt_x, bbox_3d_rrt_y]
-        line = ' '.join(line_data)
+        line = ' '.join([str(i) if type(i) is int else "{0:.2f}".format(i) for i in line_data])
         lines.append(line)
 
-    return '\r\n'.join(lines)
+    return '\n'.join(lines)
+
+
+def construct_toyota_proj_matrix():
+    # todo: dodělat
+    pass
+
+
+def json_to_toyota_calibration(data):
+    """
+    Kalibrace kamery:
+    matice vnitřní kalibrace - na diagonále je ohnisková vzdálenost v pixelech (tj, ohnisková vzdálenost v mm dělená fyzickou velikostí pixelu), v pravém sloupci střed obrázku (v pixelech)
+    tři koeficienty radiálního zkreslení, u GTA nuly
+    rotační matice kamery ve světovém souřadném systému
+    translace kamery (umístění)
+    rozlišení obrázku
+    """
+    def matrix_to_string(m):
+        return ['\n'.join([str(i) for i in row]) for row in m]
+
+    def array_to_string(a):
+        return ' '.join([str(i) for i in a])
+    part_1 = construct_toyota_proj_matrix()
+    part_2 = [0, 0, 0]
+    part_3 = np.array(data['view_matrix'])[0:3, 0:3]
+    part_4 = data['camera_pos']
+    part_5 = [data['width'], data['height']]
+    parts = [
+        matrix_to_string(part_1),
+        array_to_string(part_2),
+        matrix_to_string(part_3),
+        array_to_string(part_4),
+        array_to_string(part_5),
+    ]
+    # parts = [' '.join([str(i) for i in part]) for part in parts]
+    return '\n'.join(parts)
 
 
 def try_json_to_toyota():
     directory = r'D:\output-datasets\onroad-3'
     # base_name = '2018-07-31--18-03-24--143'
     base_name = '2018-07-31--17-37-21--852'
+    # base_name = '2018-07-31--18-34-15--501'
+    # base_name = '2018-07-31--17-45-30--020'
+    rgb_file = os.path.join(directory, '{}.jpg'.format(base_name))
     depth_file = os.path.join(directory, '{}-depth.png'.format(base_name))
     stencil_file = os.path.join(directory, '{}-stencil.png'.format(base_name))
     json_file = os.path.join(directory, '{}.json'.format(base_name))
+    rgb = Image.open(rgb_file)
     depth = np.array(Image.open(depth_file))
     depth = depth / np.iinfo(np.uint16).max  # normalizing into NDC
     stencil = np.array(Image.open(stencil_file))
     with open(json_file) as f:
         data = json.load(f)
-    json_to_toyota_format(data, depth, stencil)
+
+    txt_data = json_to_toyota_format(data, depth, stencil)
+    # cam_data = json_to_toyota_calibration(data)
+
+    with open(os.path.join('toyota-format', base_name+'.txt'), mode='w+') as f:
+        f.writelines(txt_data)
+    # with open(os.path.join('toyota-format', base_name+'.cam'), mode='w+') as f:
+    #     f.writelines(cam_data)
+    rgb.save(os.path.join('toyota-format', base_name+'.jpg'))
 
 
 def try_cameras_to_car():
@@ -350,14 +442,14 @@ def try_cameras_to_car():
         cam_rel_pos = np.array(data['camera_relative_position'])
         cam_rel_rot = np.array(data['camera_relative_rotation'])
         pos, rot = get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
-        # print('cam pos', cam_pos)
-        # print('calc car pos', pos)
-        # print('car pos', res['player_pos'])
+        print('cam pos', cam_pos)
+        print('calc car pos', pos)
+        print('car pos', res['player_pos'])
         print('cam rot', cam_rot)
         print('cam rel rot', cam_rel_rot)
         print('calc car rot', rot)
 
 
 if __name__ == '__main__':
-    # try_json_to_toyota()
-    try_cameras_to_car()
+    try_json_to_toyota()
+    # try_cameras_to_car()

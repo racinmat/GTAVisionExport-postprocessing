@@ -600,13 +600,10 @@ def car_and_relative_cam_to_absolute_cam_position(car_pos, car_rot, cam_rel_pos)
 
 
 def relative_and_absolute_camera_to_car_position(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot):
-    world_to_view_m = create_rot_matrix(np.array([0., 0., 0.]))
     r = relative_and_absolute_camera_to_car_rotation_matrix(cam_rot, cam_rel_rot)
     car_rel_position = r @ -cam_rel_pos
     car_position = car_rel_position + cam_pos
     return car_position
-
-
 
 # todo: dodělat transfer do toyoty
 # todo: začít sbírat i polohu a rotaci auta

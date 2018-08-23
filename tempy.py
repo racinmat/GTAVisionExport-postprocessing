@@ -680,10 +680,14 @@ def try_scene_to_pointcloud():
 
     def process_frame_tiff(directory, file_name, csv_name):
         rgb_file = os.path.join(visualization.get_in_directory(), '{}.tiff'.format(file_name))
+        depth_file = os.path.join(directory, '{}-depth.png'.format(file_name))
         json_file = os.path.join(directory, '{}.json'.format(file_name))
 
         rgb = np.array(Image.open(rgb_file))
-        depth = load_depth(file_name)
+        # depth = load_depth(file_name)
+        depth = np.array(Image.open(depth_file))
+        depth = depth / np.iinfo(np.uint16).max  # normalizing into NDC
+
         with open(json_file, mode='r') as f:
             data = json.load(f)
         # print(data['scene_id'])
@@ -725,12 +729,12 @@ def try_scene_to_pointcloud():
         vecs_p_world = view_to_world(vecs_p, view_matrix)
         save_csv(vecs_p_world[0:3, :].T, csv_name)
 
-    process_frame_tiff(r'D:\output-datasets\offroad-7\0', '2018-08-13--11-15-01--499', 'my-points-0-tiff-orig')
-    process_frame_tiff(r'D:\output-datasets\offroad-7\1', '2018-08-13--11-15-01--860', 'my-points-1-tiff-orig')
-    process_frame_tiff(r'D:\output-datasets\offroad-7\2', '2018-08-13--11-15-02--407', 'my-points-2-tiff-orig')
-    process_frame_tiff(r'D:\output-datasets\offroad-7\3', '2018-08-13--11-15-02--672', 'my-points-3-tiff-orig')
-    process_frame_tiff(r'D:\output-datasets\offroad-7\4', '2018-08-13--11-15-03--058', 'my-points-4-tiff-orig')
-    process_frame_tiff(r'D:\output-datasets\offroad-7\5', '2018-08-13--11-15-03--455', 'my-points-5-tiff-orig')
+    process_frame_tiff(r'D:\output-datasets\offroad-7\0', '2018-08-13--11-15-01--499', 'my-points-0-png')
+    process_frame_tiff(r'D:\output-datasets\offroad-7\1', '2018-08-13--11-15-01--860', 'my-points-1-png')
+    process_frame_tiff(r'D:\output-datasets\offroad-7\2', '2018-08-13--11-15-02--407', 'my-points-2-png')
+    process_frame_tiff(r'D:\output-datasets\offroad-7\3', '2018-08-13--11-15-02--672', 'my-points-3-png')
+    process_frame_tiff(r'D:\output-datasets\offroad-7\4', '2018-08-13--11-15-03--058', 'my-points-4-png')
+    process_frame_tiff(r'D:\output-datasets\offroad-7\5', '2018-08-13--11-15-03--455', 'my-points-5-png')
 
 
 if __name__ == '__main__':
