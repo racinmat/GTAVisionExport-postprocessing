@@ -104,13 +104,18 @@ def get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, hei
     return bbox_3d
 
 
-def get_3d_bbox_projected_to_world(entity, view_matrix, proj_matrix, width, height):
+def get_3d_bbox_projected_to_world(entity):
     model_sizes = np.array(entity['model_sizes'])
     points_3dbbox = get_model_3dbbox(model_sizes)
     point_homo = np.array(
         [points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
     bbox_3d = model_coords_to_world(entity['pos'], entity['rot'], point_homo.T)
     return bbox_3d
+
+
+def occlusion_2d_bbox_ratio(entity, entities):
+
+    return 0   # todo: implement
 
 
 def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
@@ -192,14 +197,26 @@ def vehicle_rotation_relative_to_camera(entity_rotation, camera_rotation):
 
 
 def bbox_3d_side_to_normal_vector(points):
-    pass
-
-
-def is_side_visible(points, camera_position, camera_rotation):
     """
+    I have 4 points, to define the plane, I use just 3, A, B, C.
+    Vectors AB and AC lie on the plane, so their cross product is normal to the plane
+    :param points:
+    :return:
+    """
+    a = points[0, :]
+    b = points[1, :]
+    c = points[2, :]
+    ab = b - a
+    ac = c - a
+    return np.cross(ac, ab)
+
+
+def is_side_visible(points, camera_position):
+    """
+    Because camera rotation is not part of the calculation, I assume here the camera which sees in 360°,
+    but that is handled in entities filtering, where only visible entities are passed into this function.
     Decides whether the 3d bounding box side is visible or not.
     Based on dot product of camera (camera direction vector) and side plane normal.
-    todo: zjistit, zda má být vidět celá strana nebo jenom část
     vzít paprsek z kamery do středu čtverce a dot product s normálou plochy toho čtverce
     to určí, zda by to bylo vidět na kameře co má záběr vše, pak musím otestovatasi přes NDC, zda je ve viditelnén jehlanu kamery
 
@@ -208,9 +225,14 @@ def is_side_visible(points, camera_position, camera_rotation):
     :param camera_rotation: in world coordinates, 3D
     :return:
     """
-    side_middle = np.mean(points, axis=1)  # need to calculate it by mean, because the square is projected, it is not square anymore,
+    side_middle = np.mean(points, axis=0)  # need to calculate it by mean, because the square is projected, it is not square anymore,
     # in the 2D, it is generally convex quadrilateral
-    # camera_to_side_middle = side_middle -
+    camera_to_side_middle = side_middle - camera_position
+    side_normal = bbox_3d_side_to_normal_vector(points)
+    product = np.dot(camera_to_side_middle, side_normal)
+    if product < 0:  # negative dot product means the side is visible
+        return 1
+    return 0
 
 
 def json_to_toyota_format(data, depth, stencil):
@@ -307,36 +329,37 @@ def json_to_toyota_format(data, depth, stencil):
         bbox_2d[:, 1] *= height
 
         bbox_3d_pixel = get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, height)
-        bbox_3d_world = get_3d_bbox_projected_to_world(entity, view_matrix, proj_matrix, width, height)
+        bbox_3d_world = get_3d_bbox_projected_to_world(entity)
 
         bbox_2d_left = bbox_2d[1, 0]
         bbox_2d_top = bbox_2d[1, 1]
         bbox_2d_right = bbox_2d[0, 0]
         bbox_2d_bottom = bbox_2d[0, 1]
 
-        side_visibility_rear = is_side_visible(bbox_3d_world[(0, 1, 5, 4), :], cam_pos, cam_rot)
-        side_visibility_front = is_side_visible(bbox_3d_world[(2, 3, 7, 6), :], cam_pos, cam_rot)
-        side_visibility_left = is_side_visible(bbox_3d_world[(0, 1, 3, 2), :], cam_pos, cam_rot)
-        side_visibility_right = is_side_visible(bbox_3d_world[(4, 5, 7, 6), :], cam_pos, cam_rot)
+        # same (clockwise from outside view) orientation of points sequence is crucial to determine side normal and thus visibility
+        side_visibility_rear = is_side_visible(bbox_3d_world[(0, 1, 5, 4), :], cam_pos)
+        side_visibility_front = is_side_visible(bbox_3d_world[(2, 6, 7, 3), :], cam_pos)
+        side_visibility_left = is_side_visible(bbox_3d_world[(0, 2, 3, 1), :], cam_pos)
+        side_visibility_right = is_side_visible(bbox_3d_world[(4, 5, 7, 6), :], cam_pos)
 
         # todo: to pořadí je po zrotování, ale nebo původního modelu před rotací?
         # front left ground
-        bbox_3d_flg_x = bbox_3d_pixel[0, 0]
-        bbox_3d_flg_y = bbox_3d_pixel[1, 0]
-        bbox_3d_frg_x = bbox_3d_pixel[0, 1]
-        bbox_3d_frg_y = bbox_3d_pixel[1, 1]
-        bbox_3d_rlg_x = bbox_3d_pixel[0, 2]
-        bbox_3d_rlg_y = bbox_3d_pixel[1, 2]
-        bbox_3d_rrg_x = bbox_3d_pixel[0, 3]
-        bbox_3d_rrg_y = bbox_3d_pixel[1, 3]
-        bbox_3d_flt_x = bbox_3d_pixel[0, 4]
-        bbox_3d_flt_y = bbox_3d_pixel[1, 4]
-        bbox_3d_frt_x = bbox_3d_pixel[0, 5]
-        bbox_3d_frt_y = bbox_3d_pixel[1, 5]
-        bbox_3d_rlt_x = bbox_3d_pixel[0, 6]
-        bbox_3d_rlt_y = bbox_3d_pixel[1, 6]
-        bbox_3d_rrt_x = bbox_3d_pixel[0, 7]
-        bbox_3d_rrt_y = bbox_3d_pixel[1, 7]
+        bbox_3d_flg_x = bbox_3d_pixel[0, 2]
+        bbox_3d_flg_y = bbox_3d_pixel[1, 2]
+        bbox_3d_frg_x = bbox_3d_pixel[0, 6]
+        bbox_3d_frg_y = bbox_3d_pixel[1, 6]
+        bbox_3d_rlg_x = bbox_3d_pixel[0, 0]
+        bbox_3d_rlg_y = bbox_3d_pixel[1, 0]
+        bbox_3d_rrg_x = bbox_3d_pixel[0, 4]
+        bbox_3d_rrg_y = bbox_3d_pixel[1, 4]
+        bbox_3d_flt_x = bbox_3d_pixel[0, 3]
+        bbox_3d_flt_y = bbox_3d_pixel[1, 3]
+        bbox_3d_frt_x = bbox_3d_pixel[0, 7]
+        bbox_3d_frt_y = bbox_3d_pixel[1, 7]
+        bbox_3d_rlt_x = bbox_3d_pixel[0, 1]
+        bbox_3d_rlt_y = bbox_3d_pixel[1, 1]
+        bbox_3d_rrt_x = bbox_3d_pixel[0, 5]
+        bbox_3d_rrt_y = bbox_3d_pixel[1, 5]
         # rear right top
 
         line_data = [vehicle_id, annotation_status, oclussion_level, out_of_image_level, vehicle_category,

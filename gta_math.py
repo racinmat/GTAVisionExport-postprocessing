@@ -310,14 +310,14 @@ def get_model_3dbbox(model_sizes):
     x_min, x_max, y_min, y_max, z_min, z_max = model_sizes
     # preparing points of cuboid
     points_3dbbox = np.array([
-        [x_min, y_min, z_min],
-        [x_min, y_min, z_max],
-        [x_min, y_max, z_min],
-        [x_min, y_max, z_max],
-        [x_max, y_min, z_min],
-        [x_max, y_min, z_max],
-        [x_max, y_max, z_min],
-        [x_max, y_max, z_max],
+        [x_min, y_min, z_min],  # 0 rear left ground
+        [x_min, y_min, z_max],  # 1 rear left top
+        [x_min, y_max, z_min],  # 2 front left ground
+        [x_min, y_max, z_max],  # 3 front left top
+        [x_max, y_min, z_min],  # 4 rear right ground
+        [x_max, y_min, z_max],  # 5 rear right top
+        [x_max, y_max, z_min],  # 6 front right ground
+        [x_max, y_max, z_max],  # 7 front right top
     ])
     return points_3dbbox
 
