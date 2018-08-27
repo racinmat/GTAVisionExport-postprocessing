@@ -1,5 +1,6 @@
 import json
 import os
+from functools import lru_cache
 
 import numpy as np
 from PIL import Image
@@ -8,7 +9,8 @@ import visualization
 from gta_math import calculate_2d_bbox, construct_model_matrix, get_model_3dbbox, is_entity_in_image, \
     model_coords_to_pixel, construct_view_matrix, create_rot_matrix, rot_matrix_to_euler_angles, \
     create_model_rot_matrix, model_rot_matrix_to_euler_angles, relative_and_absolute_camera_to_car_rotation_angles, \
-    relative_and_absolute_camera_to_car_position, model_coords_to_world
+    relative_and_absolute_camera_to_car_position, model_coords_to_world, calculate_2d_bbox_pixels, rectangles_overlap, \
+    get_rectangles_overlap, get_rectangle_volume
 
 
 def vehicle_type_gta_to_toyota(gta_type):
@@ -113,9 +115,42 @@ def get_3d_bbox_projected_to_world(entity):
     return bbox_3d
 
 
-def occlusion_2d_bbox_ratio(entity, entities):
+def is_entity_closer(closer, more_distant, my_car_position, my_car_rotation):
+    # tuple because of lru_cache hashability
+    closer_location = location_to_toyota_ego(closer['model_sizes'], closer['pos'], closer['rot'], my_car_position, my_car_rotation)
+    closer_distance = np.linalg.norm(closer_location)
+    more_distant_location = location_to_toyota_ego(more_distant['model_sizes'], more_distant['pos'], more_distant['rot'], my_car_position, my_car_rotation)
+    more_distant_distance = np.linalg.norm(more_distant_location)
+    return closer_distance < more_distant_distance
 
-    return 0   # todo: implement
+
+def occlusion_2d_bbox_ratio(entity, entities, view_matrix, proj_matrix, width, height, my_car_position, my_car_rotation):
+    bbox_2d = calculate_2d_bbox_pixels(entity, view_matrix, proj_matrix, width, height)
+
+    overlapping_bboxes = []
+    for other in entities:
+        if other['handle'] == entity['handle']:
+            continue
+        other_bbox_2d = calculate_2d_bbox_pixels(other, view_matrix, proj_matrix, width, height)
+        if is_entity_closer(other, entity, my_car_position, my_car_rotation) and rectangles_overlap(bbox_2d, other_bbox_2d):
+            overlapping_bboxes.append(other_bbox_2d)
+
+    overlap_volume = 0
+    for other_bbox in overlapping_bboxes:
+        overlap = get_rectangles_overlap(bbox_2d, other_bbox)
+        overlap_volume += get_rectangle_volume(overlap)
+
+    # to correctly calculate area overlapped by any other bbox, I need to calculate overlapping between all pairs of bboxes
+    # when multiple bboxes overlap original one, I need to add volume subtracted multiple times to calculate the volume correctly
+    # so firtly, I subtract every intersection of bbox with others, and then I add intersection of every pair of bboxes and orig. bbox
+    for i, bbox_1 in enumerate(overlapping_bboxes[:-1]):
+        for bbox_2 in overlapping_bboxes[i+1:]:
+            overlap = get_rectangles_overlap(bbox_1, bbox_2)
+            overlap = get_rectangles_overlap(overlap, bbox_2d)
+            overlap_volume -= get_rectangle_volume(overlap)
+
+    bbox_volume = get_rectangle_volume(bbox_2d)
+    return overlap_volume / bbox_volume
 
 
 def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
@@ -137,11 +172,9 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
         [width, height],
         [0, 0],
     ])
-    in_image = np.copy(bbox_2d)
-    in_image[0, :] = np.minimum(bbox_2d[0, :], image[0, :])
-    in_image[1, :] = np.maximum(bbox_2d[1, :], image[1, :])
-    in_image_volume = (in_image[0, 0] - in_image[1, 0]) * (in_image[0, 1] - in_image[1, 1])
-    whole_volume = (bbox_2d[0, 0] - bbox_2d[1, 0]) * (bbox_2d[0, 1] - bbox_2d[1, 1])
+    in_image = get_rectangles_overlap(bbox_2d, image)
+    in_image_volume = get_rectangle_volume(in_image)
+    whole_volume = get_rectangle_volume(bbox_2d)
     return in_image_volume / whole_volume
 
 
@@ -151,27 +184,42 @@ def get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
     return car_pos, car_rot
 
 
-def entity_gta_location_to_toyota_location_world(entity):
+def entity_gta_location_to_toyota_location_world(model_sizes, pos, rot):
     """
     Gta center is somewhere in car, toyota center is in middle of car on ground. This transfer world gta car position
     into the world toyota car position
     """
-    x_min, x_max, y_min, y_max, z_min, z_max = entity['model_sizes']
+    x_min, x_max, y_min, y_max, z_min, z_max = model_sizes
     gta_center_to_corner = np.array([x_min, y_min, z_min])
     corner_to_toyota_center = np.array([(x_max - x_min) / 2, (y_max - y_min) / 2, 0])
     gta_center_to_toyota_center = gta_center_to_corner + corner_to_toyota_center
-    rot = create_model_rot_matrix(entity['rot'])
-    world_location = entity['pos'] + rot @ gta_center_to_toyota_center
+    rot = create_model_rot_matrix(rot)
+    world_location = pos + rot @ gta_center_to_toyota_center
     return world_location
 
 
-def location_to_toyota_ego(entity, my_car_position, my_car_rotation):
+def location_to_toyota_ego(model_sizes, pos, rot, my_car_position, my_car_rotation):
+    # everything needs to be tuple for hashability, this casts to tuple
+    return location_to_toyota_ego_cached(tuple(model_sizes), tuple(pos), tuple(rot), tuple(my_car_position), tuple(my_car_rotation))
+
+
+@lru_cache(maxsize=32)
+def location_to_toyota_ego_cached(model_sizes, pos, rot, my_car_position, my_car_rotation):
     """
     Returns location of vehicle relatively to the ego car center.
     Car center is calculated from camera position and camera relative position and rotation, and thus is same
     for all cameras, rotation is taken as ego vehicle rotation, which is calculated from camera rotation and camera relative rotation
+
+    is used for actual location calculation and also for overlapping calculation. 32 cache size should be enough for all visible cars in one image
+
+    because of the lru_cache, I don't pass whole entity dictionary, but only its individual parameters
     """
-    world_location = entity_gta_location_to_toyota_location_world(entity)
+    model_sizes = list(model_sizes)
+    pos = list(pos)
+    rot = list(rot)
+    my_car_position = np.array(my_car_position)
+    my_car_rotation = np.array(my_car_rotation)
+    world_location = entity_gta_location_to_toyota_location_world(model_sizes, pos, rot)
 
     world_to_car_m = construct_view_matrix(my_car_position, my_car_rotation)
     world_location = np.concatenate((world_location, [1]))
@@ -242,7 +290,7 @@ def json_to_toyota_format(data, depth, stencil):
 
         Vehicle ID
         Annotation status (should be 5, meaning confirmed by human annotator)
-        Occlusion level (by other annotated vehicles, zero to one)
+        Occlusion level (by other annotated vehicles, zero to one, zero for fully visible vehicle)
         Out-of-image level (zero to one, zero for vehicles fully in the image)
         Vehicle category (enumeration, see below)
         Vehicle length (in mm)
@@ -296,10 +344,12 @@ def json_to_toyota_format(data, depth, stencil):
                                                                                              proj_matrix, width,
                                                                                              height)]
 
+    my_car_position, my_car_rotation = get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
+
     for entity in visible_vehicles:
         vehicle_id = entity['handle']
         annotation_status = 5  # je to fuk, nechat 5
-        oclussion_level = 0  # z 2d bounding boxů
+        occlusion_level = occlusion_2d_bbox_ratio(entity, visible_vehicles, view_matrix, proj_matrix, width, height, my_car_position, my_car_rotation)
         out_of_image_level = out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height)  # z 2d bounding boxů
         vehicle_category = vehicle_type_gta_to_toyota(entity['class'])
 
@@ -310,8 +360,8 @@ def json_to_toyota_format(data, depth, stencil):
         vehicle_height = (z_max - z_min) * 1000
         # location je bod na zemi pod středem auta, takže je třeba to napočítat posunem v rámci 3d bounding boxu
         # location is relative to the car center
-        my_car_position, my_car_rotation = get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
-        location = location_to_toyota_ego(entity, my_car_position, my_car_rotation)
+        # tuple because of lru_cache hashability
+        location = location_to_toyota_ego(tuple(entity['model_sizes']), entity['pos'], entity['rot'], my_car_position, my_car_rotation)
         # gta camera view: the coordinate system is X to the right, Y up and Z backward)
         # toyota: the coordinate system is X to the right, Y forward and Z up)
         location_x = location[0]
@@ -324,9 +374,7 @@ def json_to_toyota_format(data, depth, stencil):
 
         vehicle_rotation_cam = vehicle_rotation_relative_to_camera(entity['rot'], data['camera_rot'])
         orientation = 360 - vehicle_rotation_cam[2]  # 0 je v mém směru, úhly po směru hodinových ručiček (90 když vidím zprava, 0 zezadu, 180 zepředu), vůči kameře
-        bbox_2d = np.array(calculate_2d_bbox(entity, view_matrix, proj_matrix, width, height))
-        bbox_2d[:, 0] *= width
-        bbox_2d[:, 1] *= height
+        bbox_2d = calculate_2d_bbox_pixels(entity, view_matrix, proj_matrix, width, height)
 
         bbox_3d_pixel = get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, height)
         bbox_3d_world = get_3d_bbox_projected_to_world(entity)
@@ -362,7 +410,7 @@ def json_to_toyota_format(data, depth, stencil):
         bbox_3d_rrt_y = bbox_3d_pixel[1, 5]
         # rear right top
 
-        line_data = [vehicle_id, annotation_status, oclussion_level, out_of_image_level, vehicle_category,
+        line_data = [vehicle_id, annotation_status, occlusion_level, out_of_image_level, vehicle_category,
                      vehicle_length, vehicle_width, vehicle_height,
                      location_x, location_y, location_z, heading, distance, orientation,
                      bbox_2d_left, bbox_2d_top, bbox_2d_right, bbox_2d_bottom,
@@ -376,7 +424,11 @@ def json_to_toyota_format(data, depth, stencil):
     return '\n'.join(lines)
 
 
-def construct_toyota_proj_matrix():
+def construct_toyota_proj_matrix(data):
+    m = np.zeros((3, 3))
+    m[0, 2] = data['width'] / 2
+    m[1, 2] = data['height'] / 2
+    m[2, 2] = 1
     # todo: dodělat
     pass
 
@@ -395,7 +447,7 @@ def json_to_toyota_calibration(data):
 
     def array_to_string(a):
         return ' '.join([str(i) for i in a])
-    part_1 = construct_toyota_proj_matrix()
+    part_1 = construct_toyota_proj_matrix(data)
     part_2 = [0, 0, 0]
     part_3 = np.array(data['view_matrix'])[0:3, 0:3]
     part_4 = data['camera_pos']
@@ -414,9 +466,9 @@ def json_to_toyota_calibration(data):
 def try_json_to_toyota():
     directory = r'D:\output-datasets\onroad-3'
     # base_name = '2018-07-31--18-03-24--143'
-    base_name = '2018-07-31--17-37-21--852'
+    # base_name = '2018-07-31--17-37-21--852'
     # base_name = '2018-07-31--18-34-15--501'
-    # base_name = '2018-07-31--17-45-30--020'
+    base_name = '2018-07-31--17-45-30--020'
     rgb_file = os.path.join(directory, '{}.jpg'.format(base_name))
     depth_file = os.path.join(directory, '{}-depth.png'.format(base_name))
     stencil_file = os.path.join(directory, '{}-stencil.png'.format(base_name))
@@ -429,12 +481,12 @@ def try_json_to_toyota():
         data = json.load(f)
 
     txt_data = json_to_toyota_format(data, depth, stencil)
-    # cam_data = json_to_toyota_calibration(data)
+    cam_data = json_to_toyota_calibration(data)
 
     with open(os.path.join('toyota-format', base_name+'.txt'), mode='w+') as f:
         f.writelines(txt_data)
-    # with open(os.path.join('toyota-format', base_name+'.cam'), mode='w+') as f:
-    #     f.writelines(cam_data)
+    with open(os.path.join('toyota-format', base_name+'.cam'), mode='w+') as f:
+        f.writelines(cam_data)
     rgb.save(os.path.join('toyota-format', base_name+'.jpg'))
 
 

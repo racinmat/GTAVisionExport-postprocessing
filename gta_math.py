@@ -308,7 +308,7 @@ def construct_model_matrix(position, rotation):
 
 def get_model_3dbbox(model_sizes):
     x_min, x_max, y_min, y_max, z_min, z_max = model_sizes
-    # preparing points of cuboid
+    # preparing points of cuboid0
     points_3dbbox = np.array([
         [x_min, y_min, z_min],  # 0 rear left ground
         [x_min, y_min, z_max],  # 1 rear left top
@@ -436,6 +436,13 @@ def are_intersecting(l1, l2):
     a, b = l1
     c, d = l2
     return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
+
+
+def calculate_2d_bbox_pixels(row, view_matrix, proj_matrix, width, height):
+    bbox_2d = np.array(calculate_2d_bbox(row, view_matrix, proj_matrix, width, height))
+    bbox_2d[:, 0] *= width
+    bbox_2d[:, 1] *= height
+    return bbox_2d
 
 
 def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
@@ -605,6 +612,29 @@ def relative_and_absolute_camera_to_car_position(cam_pos, cam_rot, cam_rel_pos, 
     car_position = car_rel_position + cam_pos
     return car_position
 
+
+def range_overlap(a_min, a_max, b_min, b_max):
+    return (a_min <= b_max) and (b_min <= a_max)
+
+
+def rectangles_overlap(r1, r2):
+    r1_right, r1_left = r1[:, 0]
+    r1_top, r1_bottom = r1[:, 1]
+    r2_right, r2_left = r2[:, 0]
+    r2_top, r2_bottom = r2[:, 1]
+    return range_overlap(r1_left, r1_right, r2_left, r2_right) and range_overlap(r1_bottom, r1_top, r2_bottom, r2_top)
+
+
+def get_rectangles_overlap(r1, r2):
+    overlap = np.zeros_like(r1)
+    overlap[0, :] = np.minimum(r1[0, :], r2[0, :])
+    overlap[1, :] = np.maximum(r1[1, :], r2[1, :])
+    return overlap
+
+
+def get_rectangle_volume(r):
+    return (r[0, 0] - r[1, 0]) * (r[0, 1] - r[1, 1])
+
 # todo: dodělat transfer do toyoty
 # todo: začít sbírat i polohu a rotaci auta
-# todo: podívat se pořádně na ty pointcloudy
+# todo: transfer do kitti
