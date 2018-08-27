@@ -439,8 +439,8 @@ def json_to_toyota_calibration(data):
     Kalibrace kamery:
     matice vnitřní kalibrace - na diagonále je ohnisková vzdálenost v pixelech (tj, ohnisková vzdálenost v mm dělená fyzickou velikostí pixelu), v pravém sloupci střed obrázku (v pixelech)
     tři koeficienty radiálního zkreslení, u GTA nuly
-    rotační matice kamery ve světovém souřadném systému
-    translace kamery (umístění)
+    rotační matice kamery vůči autu
+    translace kamery (umístění) vůči autu
     rozlišení obrázku
     """
     def matrix_to_string(m):
@@ -450,7 +450,7 @@ def json_to_toyota_calibration(data):
         return ' '.join([str(i) for i in a])
     part_1 = construct_toyota_proj_matrix(data)
     part_2 = [0, 0, 0]
-    part_3 = np.array(data['view_matrix'])[0:3, 0:3]
+    part_3 = create_model_rot_matrix(data['camera_relative_rotation'])
     part_4 = data['camera_relative_position']
     part_5 = [data['width'], data['height']]
     parts = [
@@ -530,9 +530,7 @@ def obtain_toyota_projection_matrix_from_image():
     base_name = '2018-07-31--17-45-30--020'
     rgb_file = os.path.join(directory, '{}.jpg'.format(base_name))
     depth_file = os.path.join(directory, '{}-depth.png'.format(base_name))
-    stencil_file = os.path.join(directory, '{}-stencil.png'.format(base_name))
     json_file = os.path.join(directory, '{}.json'.format(base_name))
-    rgb = np.array(Image.open(rgb_file))
     depth = np.array(Image.open(depth_file))
     depth = depth / np.iinfo(np.uint16).max  # normalizing into NDC
     with open(json_file, mode='r') as f:
@@ -578,6 +576,6 @@ def obtain_toyota_projection_matrix_from_image():
 
 
 if __name__ == '__main__':
-    # try_json_to_toyota()
+    try_json_to_toyota()
     # try_cameras_to_car()
-    obtain_toyota_projection_matrix_from_image()
+    # obtain_toyota_projection_matrix_from_image()
