@@ -426,8 +426,8 @@ def json_to_toyota_format(data, depth, stencil):
 
 def construct_toyota_proj_matrix(data):
     m = np.zeros((3, 3))
-    m[0, 2] = data['width'] / 2
-    m[1, 2] = data['height'] / 2
+    m[0, 2] = (data['width'] / 2) - 0.5
+    m[1, 2] = (data['height'] / 2) - 0.5
     m[2, 2] = 1
     m[0, 0] = 1127.17986933
     m[1, 1] = 1127.17986933
@@ -558,8 +558,8 @@ def obtain_toyota_projection_matrix_from_image():
     toyota_proj = toyota_proj.T     # need to transpose it because of matrix multiplication from the other side
 
     # centering to image check
-    assert np.isclose(data['width'] / 2, toyota_proj[0, 2], atol=5e-1)
-    assert np.isclose(data['height'] / 2, toyota_proj[1, 2], atol=5e-1)
+    assert np.isclose((data['width'] / 2) - 0.5, toyota_proj[0, 2])
+    assert np.isclose((data['height'] / 2) - 0.5, toyota_proj[1, 2])
 
     # zeros where they should be checking
     assert np.isclose(0, toyota_proj[0, 1], atol=2e-6)
@@ -578,6 +578,6 @@ def obtain_toyota_projection_matrix_from_image():
 
 
 if __name__ == '__main__':
-    try_json_to_toyota()
+    # try_json_to_toyota()
     # try_cameras_to_car()
-    # obtain_toyota_projection_matrix_from_image()
+    obtain_toyota_projection_matrix_from_image()
