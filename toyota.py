@@ -170,8 +170,8 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
     bbox_3d = model_coords_to_pixel(entity['pos'], entity['rot'], point_homo.T, view_matrix, proj_matrix, width, height)
     # this bbox extraction is in pixel coordinates, that is why it looks different than in gta_math script
     bbox_2d = np.array([
-        [bbox_3d[0, :].max(), bbox_3d[0, :].max()],
-        [bbox_3d[1, :].min(), bbox_3d[1, :].min()],
+        [bbox_3d[0, :].max(), bbox_3d[1, :].max()],
+        [bbox_3d[0, :].min(), bbox_3d[1, :].min()],
     ])
     image = np.array([
         [width, height],
@@ -179,7 +179,7 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
     ])
 
     if not rectangles_overlap(bbox_2d, image):
-        return 0
+        return 0.
 
     in_image = get_rectangles_overlap(bbox_2d, image)
     in_image_volume = get_rectangle_volume(in_image)
@@ -498,9 +498,9 @@ def json_to_toyota_calibration(data):
 def try_json_to_toyota():
     directory = r'D:\output-datasets\onroad-3'
     # base_name = '2018-07-31--18-03-24--143'
-    # base_name = '2018-07-31--17-37-21--852'
+    base_name = '2018-07-31--17-37-21--852'
     # base_name = '2018-07-31--18-34-15--501'
-    base_name = '2018-07-31--17-45-30--020'
+    # base_name = '2018-07-31--17-45-30--020'
     rgb_file = os.path.join(directory, '{}.jpg'.format(base_name))
     depth_file = os.path.join(directory, '{}-depth.png'.format(base_name))
     stencil_file = os.path.join(directory, '{}-stencil.png'.format(base_name))
