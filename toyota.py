@@ -10,7 +10,7 @@ from gta_math import calculate_2d_bbox, construct_model_matrix, get_model_3dbbox
     model_coords_to_pixel, construct_view_matrix, create_rot_matrix, rot_matrix_to_euler_angles, \
     create_model_rot_matrix, model_rot_matrix_to_euler_angles, relative_and_absolute_camera_to_car_rotation_angles, \
     relative_and_absolute_camera_to_car_position, model_coords_to_world, calculate_2d_bbox_pixels, rectangles_overlap, \
-    get_rectangles_overlap, get_rectangle_volume
+    get_rectangles_overlap, get_rectangle_volume, ndc_to_real, points_to_homo, ndc_to_view
 
 
 def vehicle_type_gta_to_toyota(gta_type):
@@ -429,8 +429,9 @@ def construct_toyota_proj_matrix(data):
     m[0, 2] = data['width'] / 2
     m[1, 2] = data['height'] / 2
     m[2, 2] = 1
-    # todo: dodělat
-    pass
+    m[0, 0] = 1127.17986933
+    m[1, 1] = 1127.17986933
+    return m
 
 
 def json_to_toyota_calibration(data):
@@ -443,14 +444,14 @@ def json_to_toyota_calibration(data):
     rozlišení obrázku
     """
     def matrix_to_string(m):
-        return ['\n'.join([str(i) for i in row]) for row in m]
+        return '\n'.join([' '.join([str(i) for i in row]) for row in m])
 
     def array_to_string(a):
         return ' '.join([str(i) for i in a])
     part_1 = construct_toyota_proj_matrix(data)
     part_2 = [0, 0, 0]
     part_3 = np.array(data['view_matrix'])[0:3, 0:3]
-    part_4 = data['camera_pos']
+    part_4 = data['camera_relative_position']
     part_5 = [data['width'], data['height']]
     parts = [
         matrix_to_string(part_1),
@@ -459,8 +460,7 @@ def json_to_toyota_calibration(data):
         array_to_string(part_4),
         array_to_string(part_5),
     ]
-    # parts = [' '.join([str(i) for i in part]) for part in parts]
-    return '\n'.join(parts)
+    return '\n\n'.join(parts)
 
 
 def try_json_to_toyota():
@@ -525,6 +525,59 @@ def try_cameras_to_car():
         print('calc car rot', rot)
 
 
+def obtain_toyota_projection_matrix_from_image():
+    directory = r'D:\output-datasets\onroad-3'
+    base_name = '2018-07-31--17-45-30--020'
+    rgb_file = os.path.join(directory, '{}.jpg'.format(base_name))
+    depth_file = os.path.join(directory, '{}-depth.png'.format(base_name))
+    stencil_file = os.path.join(directory, '{}-stencil.png'.format(base_name))
+    json_file = os.path.join(directory, '{}.json'.format(base_name))
+    rgb = np.array(Image.open(rgb_file))
+    depth = np.array(Image.open(depth_file))
+    depth = depth / np.iinfo(np.uint16).max  # normalizing into NDC
+    with open(json_file, mode='r') as f:
+        data = json.load(f)
+
+    proj_matrix = np.array(data['proj_matrix'])
+    data['cam_far_clip'] = 1000
+    points_ndc, pixels = points_to_homo(data, depth, tresholding=True)
+    points_meters = ndc_to_view(points_ndc, proj_matrix)
+    points_meters *= 1000   # distances are calculated in mm
+    points_meters[2, :] *= -1
+
+    points_pixels = np.zeros((3, points_ndc.shape[1]))
+    points_pixels[0] = pixels[1] * points_meters[2, :]
+    points_pixels[1] = pixels[0] * points_meters[2, :]
+    points_pixels[2] = points_meters[2, :]
+    # points_pixels must contain point values after the normalization (dividing by depth),
+    # so now they must be multiplied by depth
+
+    points_meters = points_meters[0:3, :]
+
+    toyota_proj, residuals, rank, s = np.linalg.lstsq(points_meters.T, points_pixels.T)
+    toyota_proj = toyota_proj.T     # need to transpose it because of matrix multiplication from the other side
+
+    # centering to image check
+    assert np.isclose(data['width'] / 2, toyota_proj[0, 2], atol=5e-1)
+    assert np.isclose(data['height'] / 2, toyota_proj[1, 2], atol=5e-1)
+
+    # zeros where they should be checking
+    assert np.isclose(0, toyota_proj[0, 1], atol=2e-6)
+    assert np.isclose(0, toyota_proj[1, 0], atol=2e-6)
+    assert np.isclose(0, toyota_proj[2, 0], atol=2e-6)
+    assert np.isclose(0, toyota_proj[2, 1], atol=2e-6)
+
+    assert np.isclose(1, toyota_proj[2, 2])
+
+    # fov should be same for x and y
+    # fov in pixel size checking
+    assert np.isclose(toyota_proj[0, 0], - toyota_proj[1, 1], atol=5e-1)
+
+    print(toyota_proj.T, ' is the projection matrix')
+    print((toyota_proj[0, 0] - toyota_proj[1, 1]) / 2, 'is the fov you are looking for')
+
+
 if __name__ == '__main__':
     try_json_to_toyota()
     # try_cameras_to_car()
+    # obtain_toyota_projection_matrix_from_image()
