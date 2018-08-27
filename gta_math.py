@@ -341,7 +341,8 @@ def model_coords_to_ndc(model_pos, model_rot, positions, view_matrix, proj_matri
     return projected.T[:, 0:3]
 
 
-def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height):
+def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height, vehicle_stencil_ratio=0.4):
+    # at least 40% of pixels have to be vehicle stencil
     pos = np.array(row['pos'])
     rot = np.array(row['rot'])
     # todo: add entity visibility checking based on stencil data
@@ -383,7 +384,6 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
     bbox = bbox.astype(np.int)
 
     # checkin the stencil inside 2D bounding box
-    vehicle_stencil_ratio = 0.4  # at least 40% of pixels have to be vehicle stencil
     vehicle_stencil_id = 2
     stencil_in_bbox = stencil[bbox[1, 1]:bbox[0, 1], bbox[1, 0]:bbox[0, 0]]
     if (stencil_in_bbox == vehicle_stencil_id).mean() < vehicle_stencil_ratio:
@@ -635,6 +635,5 @@ def get_rectangles_overlap(r1, r2):
 def get_rectangle_volume(r):
     return (r[0, 0] - r[1, 0]) * (r[0, 1] - r[1, 1])
 
-# todo: dodělat transfer do toyoty
 # todo: začít sbírat i polohu a rotaci auta
 # todo: transfer do kitti

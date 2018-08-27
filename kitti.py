@@ -1,5 +1,5 @@
 def image_gta_to_kitti():
-    pass # todo: implement
+    pass  # todo: implement
 
 
 def load_kitti_calib_data(path):
