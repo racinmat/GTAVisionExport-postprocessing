@@ -55,17 +55,17 @@ def vehicle_type_gta_to_toyota(gta_type):
     """
     # todo: výhledově přidat sběr modelů
     mapping = {
-        'Compacts': 'VEHICLE_CITY_CAR',
-        'Sedans': 'VEHICLE_PASSENGER_CAR',
+        'Compacts': 'CITY_CAR',
+        'Sedans': 'PASSENGER_CAR',
         'SUVs': 'SUV',
-        'Coupes': 'VEHICLE_PASSENGER_CAR',
-        'Muscle': 'VEHICLE_PASSENGER_CAR',
-        'SportsClassics': 'VEHICLE_PASSENGER_CAR',
-        'Sports': 'VEHICLE_PASSENGER_CAR',
-        'Super': 'VEHICLE_PASSENGER_CAR',
+        'Coupes': 'PASSENGER_CAR',
+        'Muscle': 'PASSENGER_CAR',
+        'SportsClassics': 'PASSENGER_CAR',
+        'Sports': 'PASSENGER_CAR',
+        'Super': 'PASSENGER_CAR',
         'Motorcycles': 'OTHER',
         'OffRoad': 'SUV',
-        'Industrial': 'VEHICLE_TRUCK',
+        'Industrial': 'TRUCK',
         'Utility': 'OTHER',
         'Vans': 'VAN',
         'Cycles': 'OTHER',
@@ -168,9 +168,10 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
     point_homo = np.array(
         [points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
     bbox_3d = model_coords_to_pixel(entity['pos'], entity['rot'], point_homo.T, view_matrix, proj_matrix, width, height)
+    # this bbox extraction is in pixel coordinates, that is why it looks different than in gta_math script
     bbox_2d = np.array([
-        [bbox_3d[:, 0].max(), -bbox_3d[:, 1].min()],
-        [bbox_3d[:, 0].min(), -bbox_3d[:, 1].max()],
+        [bbox_3d[0, :].max(), bbox_3d[0, :].max()],
+        [bbox_3d[1, :].min(), bbox_3d[1, :].min()],
     ])
     image = np.array([
         [width, height],
@@ -183,7 +184,7 @@ def out_of_image_2dbbox_ratio(entity, view_matrix, proj_matrix, width, height):
     in_image = get_rectangles_overlap(bbox_2d, image)
     in_image_volume = get_rectangle_volume(in_image)
     whole_volume = get_rectangle_volume(bbox_2d)
-    return in_image_volume / whole_volume
+    return (whole_volume - in_image_volume) / whole_volume
 
 
 def get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot):

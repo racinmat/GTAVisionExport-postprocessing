@@ -462,9 +462,9 @@ def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
     projected /= projected[3, :]
     bbox_3d = projected.T[:, 0:3]
 
-    bbox_2d_points = bbox_3d[:, 0:2]
-    is_3d_bbox_partially_outside = (bbox_2d_points < -1).any() or (bbox_2d_points > 1).any()
-    bbox_2d_points = bbox_2d_points[((bbox_2d_points <= 1) & (bbox_2d_points >= -1)).all(axis=1)]
+    bbox_2d_points_ndc = bbox_3d[:, 0:2]
+    is_3d_bbox_partially_outside = (bbox_2d_points_ndc < -1).any() or (bbox_2d_points_ndc > 1).any()
+    bbox_2d_points_ndc = bbox_2d_points_ndc[((bbox_2d_points_ndc <= 1) & (bbox_2d_points_ndc >= -1)).all(axis=1)]
     if is_3d_bbox_partially_outside:
         bbox_2d = model_coords_to_pixel(pos, rot, points_3dbbox, view_matrix, proj_matrix, width, height).T
         # now we need to compute intersections between end of image and points
@@ -498,14 +498,15 @@ def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
                     l2 = Line(Point(border[0][0], border[0][1]), Point(border[1][0], border[1][1]))
                     x, y = np.array(next(iter(l1.intersect(l2))), dtype=np.float32)
                     ndc_y, ndc_x = pixel_to_ndc((y, x), (height, width))
-                    bbox_2d_points = np.vstack((bbox_2d_points, [ndc_x, ndc_y]))
+                    bbox_2d_points_ndc = np.vstack((bbox_2d_points_ndc, [ndc_x, ndc_y]))
 
-    bbox_2d = np.array([
-        [bbox_2d_points[:, 0].max(), -bbox_2d_points[:, 1].min()],
-        [bbox_2d_points[:, 0].min(), -bbox_2d_points[:, 1].max()],
+    # because of NDC, this 2d bbox extraction looks so weird
+    bbox_2d_ndc = np.array([
+        [bbox_2d_points_ndc[:, 0].max(), -bbox_2d_points_ndc[:, 1].min()],
+        [bbox_2d_points_ndc[:, 0].min(), -bbox_2d_points_ndc[:, 1].max()],
     ])
     # rescale from [-1, 1] to [0, 1]
-    bbox_2d = (bbox_2d / 2) + 0.5
+    bbox_2d = (bbox_2d_ndc / 2) + 0.5
     return bbox_2d.tolist()
 
 
