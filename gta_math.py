@@ -1,5 +1,5 @@
 import numpy as np
-from math import tan, atan, radians, degrees, cos, sin
+from math import tan, atan, radians, degrees, cos, sin, atan2
 import time
 from sympy import Line, Point
 
@@ -154,6 +154,10 @@ def ndc_to_real(depth, proj_matrix):
     new_depth[vec_y, vec_x] = vecs_p[:, 2]
 
     return new_depth
+
+
+def vfov_to_hfov(H=1080, W=1914, fov=50.0):
+    return degrees(2 * atan2(W * tan(radians(fov/2)), H))
 
 
 def construct_proj_matrix(H=1080, W=1914, fov=50.0, near_clip=1.5):
