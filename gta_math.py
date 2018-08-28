@@ -160,10 +160,14 @@ def vfov_to_hfov(H=1080, W=1914, fov=50.0):
     return degrees(2 * atan2(W * tan(radians(fov/2)), H))
 
 
+def get_gta_far_clip():
+    return 10003.815  # the far clip, rounded value of median, after very weird values were discarded
+
+
 def construct_proj_matrix(H=1080, W=1914, fov=50.0, near_clip=1.5):
     # for z coord
     f = near_clip  # the near clip, but f in the book
-    n = 10003.815  # the far clip, rounded value of median, after very weird values were discarded
+    n = get_gta_far_clip()
     # x coord
     # r = W * n * tan(radians(fov) / 2) / H
     # l = -r
@@ -184,6 +188,17 @@ def construct_proj_matrix(H=1080, W=1914, fov=50.0, near_clip=1.5):
         [0, 0, -f / (f - n), -f * n / (f - n)],
         [0, 0, -1, 0],
     ])
+
+
+def proj_matrix_to_near_clip(proj_matrix):
+    f = get_gta_far_clip()
+    p22 = proj_matrix[2, 2]
+    p23 = proj_matrix[2, 3]
+    # n_1 and n_2 should be same, so I just assert they are very similar and average them
+    n_1 = (p22 * f) / (1 - p22)
+    n_2 = (p23 * f) / (p23 + f)
+    assert np.isclose(n_1, n_2, atol=5e-6)
+    return (n_1 + n_2) / 2
 
 
 def depth_crop_and_positive(depth):
