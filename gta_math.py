@@ -1,8 +1,11 @@
+from functools import lru_cache
+from joblib import Memory
 import numpy as np
 from math import tan, atan, radians, degrees, cos, sin, atan2
 import time
 from sympy import Line, Point
-
+import _pickle
+from datamatrix import functional as fnc
 
 # threshold for persisting images,
 THRESHOLD = 1000
@@ -14,8 +17,8 @@ PROJECTING = False
 def pixel_to_ndc(pixel, size):
     p_y, p_x = pixel
     s_y, s_x = size
-    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
-    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_y -= 1  # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1  # so 1 is being mapped into (n-1)th pixel
     return (((- 2 / s_y) * p_y + 1), (2 / s_x) * p_x - 1)
 
 
@@ -28,8 +31,8 @@ def pixels_to_ndcs(pixels, size):
     p_y = pixels[0, :]
     p_x = pixels[1, :]
     s_y, s_x = size
-    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
-    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_y -= 1  # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1  # so 1 is being mapped into (n-1)th pixel
     pixels[0, :] = (-2 / s_y) * p_y + 1
     pixels[1, :] = (2 / s_x) * p_x - 1
     return pixels
@@ -38,8 +41,8 @@ def pixels_to_ndcs(pixels, size):
 def ndc_to_pixel(ndc, size):
     ndc_y, ndc_x = ndc
     s_y, s_x = size
-    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
-    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_y -= 1  # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1  # so 1 is being mapped into (n-1)th pixel
     return (-(s_y / 2) * ndc_y + (s_y / 2), (s_x / 2) * ndc_x + (s_x / 2))
 
 
@@ -52,8 +55,8 @@ def ndcs_to_pixels(ndcs, size):
     ndc_x = ndcs[0, :]
     ndc_y = ndcs[1, :]
     s_y, s_x = size
-    s_y -= 1    # so 1 is being mapped into (n-1)th pixel
-    s_x -= 1    # so 1 is being mapped into (n-1)th pixel
+    s_y -= 1  # so 1 is being mapped into (n-1)th pixel
+    s_x -= 1  # so 1 is being mapped into (n-1)th pixel
     pixels[0, :] = (-s_y / 2) * ndc_y + (s_y / 2)
     pixels[1, :] = (s_x / 2) * ndc_x + (s_x / 2)
     return pixels.astype(np.int32)
@@ -84,7 +87,8 @@ def points_to_homo(res, depth, tresholding=True):
 
     if PROJECTING:
         # print('projecting')
-        depth[depth < threshold] = threshold    # since 0 is far clip, depth below threshold is behind threshold, and this projects it
+        depth[
+            depth < threshold] = threshold  # since 0 is far clip, depth below threshold is behind threshold, and this projects it
     # print('threshold', threshold)
     # vecs = np.zeros((4, points.shape[0]))
     valid_points = np.where(depth >= threshold)
@@ -157,7 +161,7 @@ def ndc_to_real(depth, proj_matrix):
 
 
 def vfov_to_hfov(H=1080, W=1914, fov=50.0):
-    return degrees(2 * atan2(W * tan(radians(fov/2)), H))
+    return degrees(2 * atan2(W * tan(radians(fov / 2)), H))
 
 
 def get_gta_far_clip():
@@ -268,11 +272,12 @@ def homo_world_coords_to_pixel(point_homo, view_matrix, proj_matrix, width, heig
     viewed = view_matrix @ point_homo
     projected = proj_matrix @ viewed
     # following row works for partially visible cars, not for cars completely outside of the frustum
-    projected[0:3, projected[3] < 0] *= -1  # this row is very important. It fixed invalid projection of points outside the camera view frustum
+    projected[0:3, projected[
+                       3] < 0] *= -1  # this row is very important. It fixed invalid projection of points outside the camera view frustum
     projected /= projected[3]
     to_pixel_matrix = np.array([
-        [width/2, 0, 0, width/2],
-        [0, -height/2, 0, height/2],
+        [width / 2, 0, 0, width / 2],
+        [0, -height / 2, 0, height / 2],
     ])
     in_pixels = to_pixel_matrix @ projected
     return in_pixels
@@ -287,7 +292,7 @@ def model_coords_to_pixel(model_pos, model_rot, positions, view_matrix, proj_mat
     point_homo = np.array([positions[:, 0], positions[:, 1], positions[:, 2], np.ones_like(positions[:, 0])])
     model_matrix = construct_model_matrix(model_pos, model_rot)
     world_point_homo = model_matrix @ point_homo
-    #print('world_point_homo.shape', world_point_homo.shape)
+    # print('world_point_homo.shape', world_point_homo.shape)
     return homo_world_coords_to_pixel(world_point_homo, view_matrix, proj_matrix, width, height)
 
 
@@ -360,31 +365,69 @@ def model_coords_to_ndc(model_pos, model_rot, positions, view_matrix, proj_matri
     return projected.T[:, 0:3]
 
 
-def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height, vehicle_stencil_ratio=0.4):
+@lru_cache(maxsize=8)
+def get_pixels_meshgrid(width, height):
+    # this shall be called per entity in image, this saves the data
+    cc, rr = np.meshgrid(range(width), range(height))
+    return cc, rr
+
+
+@lru_cache(maxsize=8)
+def get_pixels_3d_cached(depth, proj_matrix, view_matrix, width, height):
+    # _pickle should be pickle in C, thus faster
+    depth = _pickle.loads(depth)
+    proj_matrix = _pickle.loads(proj_matrix)
+    view_matrix = _pickle.loads(view_matrix)
+    return get_pixels_3d(depth, proj_matrix, view_matrix, width, height)
+
+
+def get_pixels_3d(depth, proj_matrix, view_matrix, width, height):
+    data = {
+        'width': width,
+        'height': height,
+        'proj_matrix': proj_matrix
+    }
+    # this shall be called per entity in image, this saves the data
+    pts, _ = points_to_homo(data, depth, tresholding=False)  # False to get all pixels
+    pts_p = ndc_to_view(pts, proj_matrix)
+    pixel_3d = view_to_world(pts_p, view_matrix)
+    pixel_3d = np.reshape(pixel_3d, (4, height, width))
+    pixel_3d = pixel_3d[0:3, ::]
+    return pixel_3d
+
+
+def are_behind_plane(x0, x1, x2, x, y, z):
+    v1 = x1 - x0
+    v2 = x2 - x0
+    n = np.cross(v1, v2)
+
+    return n[0] * (x - x0[0]) + n[1] * (y - x0[1]) + n[2] * (z - x0[2]) > 0
+
+
+def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height,
+                       vehicle_stencil_ratio=0.4, depth_in_bbox_ratio=0.5):
     # at least 40% of pixels have to be vehicle stencil
     pos = np.array(row['pos'])
     rot = np.array(row['rot'])
     # todo: add entity visibility checking based on stencil data
     model_sizes = np.array(row['model_sizes'])
-    points_3dbbox = get_model_3dbbox(model_sizes)
-
-    # if row['bbox'][0] != [np.inf, np.inf]:
-    #     return True
+    bbox_3d_model = get_model_3dbbox(model_sizes)
 
     # calculating model_coords_to_ndc, so we have both ndc and viewed points
-    point_homo = np.array([points_3dbbox[:, 0], points_3dbbox[:, 1], points_3dbbox[:, 2], np.ones_like(points_3dbbox[:, 0])])
+    bbox_3d_model_homo = np.array(
+        [bbox_3d_model[:, 0], bbox_3d_model[:, 1], bbox_3d_model[:, 2], np.ones_like(bbox_3d_model[:, 0])])
     model_matrix = construct_model_matrix(pos, rot)
-    point_homo = model_matrix @ point_homo
-    viewed = view_matrix @ point_homo
+    bbox_3d_world_homo = model_matrix @ bbox_3d_model_homo
+    viewed = view_matrix @ bbox_3d_world_homo
     projected = proj_matrix @ viewed
     projected /= projected[3, :]
-    bbox_3d = projected.T[:, 0:3]
+    bbox_3d_ndc = projected.T[:, 0:3]
 
-    bbox_2d = bbox_3d[:, 0:2]
-    # test if points are inside NDC cubloid by X and Y
+    bbox_2d = bbox_3d_ndc[:, 0:2]
+    # test if points are inside NDC cuboid by X and Y
     in_ndc = ((bbox_2d[:, 0] > -1) & (bbox_2d[:, 0] < 1) & (bbox_2d[:, 1] > -1) & (bbox_2d[:, 1] < 1)).any()
     # test if points are behind near clip (if they are, they should be in image)
-    behind_near_clip = (viewed[2] < 0).any()    # assuming near clip is negative here, which means classical near clip
+    behind_near_clip = (viewed[2] < 0).any()  # assuming near clip is negative here, which means classical near clip
 
     # the new strategy is only to check cars with bbox infinities.
     # this car is either not seen or it is partly in the image.
@@ -397,15 +440,19 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         return False
 
     # the 2d bbox, rectangle
-    bbox = np.array(calculate_2d_bbox(row, view_matrix, proj_matrix, width, height))
+    entity = {'rot': row['rot'], 'pos': row['pos'], 'model_sizes': row['model_sizes']}  # sending just necessary data, more simple for caching
+    bbox = np.array(calculate_2d_bbox(entity, view_matrix, proj_matrix, width, height))
     bbox[:, 0] *= width
     bbox[:, 1] *= height
-    bbox = bbox.astype(np.int)
+    bbox = np.array([[np.ceil(bbox[0, 0]), np.floor(bbox[0, 1])],
+                     [np.ceil(bbox[1, 0]), np.floor(bbox[1, 1])]]).astype(int)
 
-    # checkin the stencil inside 2D bounding box
+    # checking the stencil inside 2D bounding box
     vehicle_stencil_id = 2
-    stencil_in_bbox = stencil[bbox[1, 1]:bbox[0, 1], bbox[1, 0]:bbox[0, 0]]
-    if (stencil_in_bbox == vehicle_stencil_id).mean() < vehicle_stencil_ratio:
+    # bitwise with 7 sets all flags to zero and keeps only stencil ids
+    car_mask = np.bitwise_and(stencil, 7) == vehicle_stencil_id
+    car_mask_in_bbox = car_mask[bbox[1, 1]:bbox[0, 1], bbox[1, 0]:bbox[0, 0]]
+    if car_mask_in_bbox.mean() < vehicle_stencil_ratio:
         return False
 
     # test of obstacles, if 3d coord of point where middle of entity should be, is in correct depth
@@ -414,19 +461,39 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
     ndc_y, ndc_x = pixel_to_ndc((pix_y, pix_x), (height, width))
     if ndc_x < -1 or ndc_x > 1 or ndc_y < -1 or ndc_y > 1:
         # position is not in the image (e.g. partially visible objects)
-        # so I can not evaluate it and thus I say it is ok, since this test is only for exclding some cars
+        # so I can not evaluate it and thus I say it is ok, since this test is only for excluding some cars
         return True
 
-    ndc_homo = np.array([ndc_x, ndc_y, depth[pix_y, pix_x], 1])[:, np.newaxis]
-    view_homo = ndc_to_view(ndc_homo, proj_matrix)
-    world_homo = view_to_world(view_homo, view_matrix)
-    world_homo /= world_homo[3]
-    world_pos = world_homo[0:3].T
-    # now I have original entity position, and world position of pixel corresponding to its location on image.
-    # Now, if they are distant more than diameter of model size, it is not in the image
-    eps = np.linalg.norm(model_sizes.reshape(3, 2))
-    dist = np.linalg.norm(pos - world_pos)
-    return dist <= eps*2
+    # instance segmentation, for vehicle stencil id pixels, checking if depth pixels are inside 3d bbox in world coordinates
+    # and comparing number of these depth pixels in and outside 3d bbox to determine the visibility
+    cc, rr = get_pixels_meshgrid(width, height)
+    # _pickle is C implementation of pickle, very fast. This is the best and fastest way to serialize and deserialize numpy arrays. Thus great for caching
+    pixel_3d = get_pixels_3d_cached(_pickle.dumps(depth), _pickle.dumps(proj_matrix), _pickle.dumps(view_matrix), width, height)
+    # pixel_3d = get_pixels_3d(depth, proj_matrix, view_matrix, width, height)      # non cached version, slower
+
+    bbox_3d_world_homo /= bbox_3d_world_homo[3, :]
+    bbox_3d_world = bbox_3d_world_homo[0:3, :].T
+
+    # points inside the 2D bbox with car mask on
+    idxs = np.where(
+        (car_mask == True) & (cc >= bbox[1, 0]) & (cc <= bbox[0, 0]) & (rr >= bbox[1, 1]) & (rr <= bbox[0, 1]))
+    # must be == True, because this operator is overloaded to compare every element with True value
+
+    # 3D coordinates of pixels in idxs
+    x = pixel_3d[0, ::].squeeze()[idxs]
+    y = pixel_3d[1, ::].squeeze()[idxs]
+    z = pixel_3d[2, ::].squeeze()[idxs]
+
+    # test if the points lie inside 3D bbox
+    in1 = are_behind_plane(bbox_3d_world[3, :], bbox_3d_world[2, :], bbox_3d_world[7, :], x, y, z)
+    in2 = are_behind_plane(bbox_3d_world[1, :], bbox_3d_world[5, :], bbox_3d_world[0, :], x, y, z)
+    in3 = are_behind_plane(bbox_3d_world[6, :], bbox_3d_world[2, :], bbox_3d_world[4, :], x, y, z)
+    in4 = are_behind_plane(bbox_3d_world[3, :], bbox_3d_world[7, :], bbox_3d_world[1, :], x, y, z)
+    in5 = are_behind_plane(bbox_3d_world[7, :], bbox_3d_world[6, :], bbox_3d_world[5, :], x, y, z)
+    in6 = are_behind_plane(bbox_3d_world[0, :], bbox_3d_world[2, :], bbox_3d_world[1, :], x, y, z)
+    is_inside = in1 & in2 & in3 & in4 & in5 & in6
+
+    return is_inside.mean() >= depth_in_bbox_ratio
 
 
 # https://stackoverflow.com/questions/3252194/numpy-and-line-intersections
@@ -464,6 +531,7 @@ def calculate_2d_bbox_pixels(row, view_matrix, proj_matrix, width, height):
     return bbox_2d
 
 
+@fnc.memoize
 def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
     pos = np.array(row['pos'])
     rot = np.array(row['rot'])
@@ -520,9 +588,10 @@ def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
                     bbox_2d_points_ndc = np.vstack((bbox_2d_points_ndc, [ndc_x, ndc_y]))
 
     # because of NDC, this 2d bbox extraction looks so weird
+    bbox_2d_points_ndc[:, 1] *= -1  # revert the Y axis in NDC (range [-1,1]) so it corresponds to the pixels axes
     bbox_2d_ndc = np.array([
-        [bbox_2d_points_ndc[:, 0].max(), -bbox_2d_points_ndc[:, 1].min()],
-        [bbox_2d_points_ndc[:, 0].min(), -bbox_2d_points_ndc[:, 1].max()],
+        [bbox_2d_points_ndc[:, 0].max(), bbox_2d_points_ndc[:, 1].max()],
+        [bbox_2d_points_ndc[:, 0].min(), bbox_2d_points_ndc[:, 1].min()],
     ])
     # rescale from [-1, 1] to [0, 1]
     bbox_2d = (bbox_2d_ndc / 2) + 0.5
@@ -587,7 +656,7 @@ def rot_matrix_to_euler_angles(r):
     else:
         x = np.arctan2(-r[2, 0], r[1, 0])
         y = np.arctan2(-r[0, 2], sy)
-        z = 0   # arbitrarily set because this singular solution leads to x and z rotating around same axis
+        z = 0  # arbitrarily set because this singular solution leads to x and z rotating around same axis
     return np.degrees(np.array([x, y, z]))
 
 
@@ -654,6 +723,17 @@ def get_rectangles_overlap(r1, r2):
 
 def get_rectangle_volume(r):
     return (r[0, 0] - r[1, 0]) * (r[0, 1] - r[1, 1])
+
+
+# this is the joblib Cache, can cache even mutable, non-hashable objects, but does not use the decorator
+# https://joblib.readthedocs.io/en/latest/auto_examples/memory_basic_usage.html
+# memory = Memory('./_cache', verbose=0, bytes_limit=300 * 1024 * 1024)
+# these functions take numpy arrays as parameters, that's why I cache them that way
+# get_pixels_3d = memory.cache(get_pixels_3d)
+# by memory measurement via
+# from sys import getsizeof
+# getsizeof(some_numpy_array)
+# the get_pixels_3d takes 48MB to allocate. So around 300MB cache size should not be too much nor too few
 
 # todo: začít sbírat i polohu a rotaci auta
 # todo: transfer do kitti

@@ -1,10 +1,9 @@
 import json
 import os
 from functools import lru_cache
-
+import time
 import numpy as np
 from PIL import Image
-
 import visualization
 from gta_math import calculate_2d_bbox, construct_model_matrix, get_model_3dbbox, is_entity_in_image, \
     model_coords_to_pixel, construct_view_matrix, create_rot_matrix, rot_matrix_to_euler_angles, \
@@ -128,13 +127,16 @@ def is_entity_closer(closer, more_distant, my_car_position, my_car_rotation):
 
 def occlusion_2d_bbox_ratio(entity, entities, view_matrix, proj_matrix, width, height, my_car_position,
                             my_car_rotation):
-    bbox_2d = calculate_2d_bbox_pixels(entity, view_matrix, proj_matrix, width, height)
+    entity_data = {'rot': entity['rot'], 'pos': entity['pos'], 'model_sizes': entity['model_sizes']}  # sending just necessary data, more simple for caching
+    bbox_2d = calculate_2d_bbox_pixels(entity_data, view_matrix, proj_matrix, width, height)
 
     overlapping_bboxes = []
     for other in entities:
         if other['handle'] == entity['handle']:
             continue
-        other_bbox_2d = calculate_2d_bbox_pixels(other, view_matrix, proj_matrix, width, height)
+
+        other_data = {'rot': other['rot'], 'pos': other['pos'], 'model_sizes': other['model_sizes']}  # sending just necessary data, more simple for caching
+        other_bbox_2d = calculate_2d_bbox_pixels(other_data, view_matrix, proj_matrix, width, height)
         if is_entity_closer(other, entity, my_car_position, my_car_rotation) and rectangles_overlap(bbox_2d,
                                                                                                     other_bbox_2d):
             overlapping_bboxes.append(other_bbox_2d)
@@ -363,7 +365,7 @@ def json_to_toyota_format(data, depth, stencil):
                         e['type'] == 'car' and
                         e['class'] != 'Trains' and
                         is_entity_in_image(depth, stencil, e, view_matrix, proj_matrix, width, height,
-                                           vehicle_stencil_ratio=0.1)]
+                                           vehicle_stencil_ratio=0.3, depth_in_bbox_ratio=0.5)]
 
     my_car_position, my_car_rotation = get_my_car_position_and_rotation(cam_pos, cam_rot, cam_rel_pos, cam_rel_rot)
     my_car_position += get_gta_center_to_toyota_center(get_my_car_model_sizes())
@@ -401,7 +403,8 @@ def json_to_toyota_format(data, depth, stencil):
         vehicle_rotation_cam = vehicle_rotation_relative_to_camera(entity['rot'], data['camera_rot'])
         orientation = 360 - vehicle_rotation_cam[
             2]  # 0 je v mém směru, úhly po směru hodinových ručiček (90 když vidím zprava, 0 zezadu, 180 zepředu), vůči kameře
-        bbox_2d = calculate_2d_bbox_pixels(entity, view_matrix, proj_matrix, width, height)
+        entity_data = {'rot': entity['rot'], 'pos': entity['pos'], 'model_sizes': entity['model_sizes']}  # sending just necessary data, more simple for caching
+        bbox_2d = calculate_2d_bbox_pixels(entity_data, view_matrix, proj_matrix, width, height)
 
         bbox_3d_pixel = get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, height)
         bbox_3d_world = get_3d_bbox_projected_to_world(entity)
@@ -498,9 +501,9 @@ def json_to_toyota_calibration(data):
 def try_json_to_toyota():
     directory = r'D:\output-datasets\onroad-3'
     # base_name = '2018-07-31--18-03-24--143'
-    base_name = '2018-07-31--17-37-21--852'
+    # base_name = '2018-07-31--17-37-21--852'
     # base_name = '2018-07-31--18-34-15--501'
-    # base_name = '2018-07-31--17-45-30--020'
+    base_name = '2018-07-31--17-45-30--020'
     rgb_file = os.path.join(directory, '{}.jpg'.format(base_name))
     depth_file = os.path.join(directory, '{}-depth.png'.format(base_name))
     stencil_file = os.path.join(directory, '{}-stencil.png'.format(base_name))
@@ -512,8 +515,13 @@ def try_json_to_toyota():
     with open(json_file) as f:
         data = json.load(f)
 
+    start = time.time()
+
     txt_data = json_to_toyota_format(data, depth, stencil)
     cam_data = json_to_toyota_calibration(data)
+
+    end = time.time()
+    print('json to toyota format', end - start)
 
     with open(os.path.join('toyota-format', base_name + '.txt'), mode='w+') as f:
         f.writelines(txt_data)
