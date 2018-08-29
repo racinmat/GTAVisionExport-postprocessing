@@ -440,7 +440,8 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         return False
 
     # the 2d bbox, rectangle
-    bbox = np.array(calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height))
+    bbox = np.array(calculate_2d_bbox_cached(tuple(row['pos']), tuple(row['rot']), tuple(row['model_sizes']), _pickle.dumps(view_matrix), _pickle.dumps(proj_matrix), width, height))
+    # bbox = np.array(calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height))
     bbox[:, 0] *= width
     bbox[:, 1] *= height
     bbox = np.array([[np.ceil(bbox[0, 0]), np.floor(bbox[0, 1])],
@@ -524,14 +525,19 @@ def are_intersecting(l1, l2):
 
 
 def calculate_2d_bbox_pixels(pos, rot, model_sizes, view_matrix, proj_matrix, width, height):
-    bbox_2d = np.array(calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height))
+    bbox_2d = np.array(calculate_2d_bbox_cached(tuple(pos), tuple(rot), tuple(model_sizes), _pickle.dumps(view_matrix), _pickle.dumps(proj_matrix), width, height))
+    # bbox_2d = np.array(calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height))
     bbox_2d[:, 0] *= width
     bbox_2d[:, 1] *= height
     return bbox_2d
 
 
 # @fnc.memoize    # DO NOT use the datamatrix memoize function, it is not threadsafe
+@lru_cache(maxsize=64)
 def calculate_2d_bbox_cached(pos, rot, model_sizes, view_matrix, proj_matrix, width, height):
+    pos = list(pos)
+    rot = list(rot)
+    model_sizes = list(model_sizes)
     proj_matrix = _pickle.loads(proj_matrix)
     view_matrix = _pickle.loads(view_matrix)
     return calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height)

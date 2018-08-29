@@ -127,16 +127,14 @@ def is_entity_closer(closer, more_distant, my_car_position, my_car_rotation):
 
 def occlusion_2d_bbox_ratio(entity, entities, view_matrix, proj_matrix, width, height, my_car_position,
                             my_car_rotation):
-    entity_data = {'rot': entity['rot'], 'pos': entity['pos'], 'model_sizes': entity['model_sizes']}  # sending just necessary data, more simple for caching
-    bbox_2d = calculate_2d_bbox_pixels(entity_data, view_matrix, proj_matrix, width, height)
+    bbox_2d = calculate_2d_bbox_pixels(entity['pos'], entity['rot'], entity['model_sizes'], view_matrix, proj_matrix, width, height)
 
     overlapping_bboxes = []
     for other in entities:
         if other['handle'] == entity['handle']:
             continue
 
-        other_data = {'rot': other['rot'], 'pos': other['pos'], 'model_sizes': other['model_sizes']}  # sending just necessary data, more simple for caching
-        other_bbox_2d = calculate_2d_bbox_pixels(other_data, view_matrix, proj_matrix, width, height)
+        other_bbox_2d = calculate_2d_bbox_pixels(other['pos'], other['rot'], other['model_sizes'], view_matrix, proj_matrix, width, height)
         if is_entity_closer(other, entity, my_car_position, my_car_rotation) and rectangles_overlap(bbox_2d,
                                                                                                     other_bbox_2d):
             overlapping_bboxes.append(other_bbox_2d)
@@ -403,8 +401,7 @@ def json_to_toyota_format(data, depth, stencil):
         vehicle_rotation_cam = vehicle_rotation_relative_to_camera(entity['rot'], data['camera_rot'])
         orientation = 360 - vehicle_rotation_cam[
             2]  # 0 je v mém směru, úhly po směru hodinových ručiček (90 když vidím zprava, 0 zezadu, 180 zepředu), vůči kameře
-        entity_data = {'rot': entity['rot'], 'pos': entity['pos'], 'model_sizes': entity['model_sizes']}  # sending just necessary data, more simple for caching
-        bbox_2d = calculate_2d_bbox_pixels(entity_data, view_matrix, proj_matrix, width, height)
+        bbox_2d = calculate_2d_bbox_pixels(entity['pos'], entity['rot'], entity['model_sizes'], view_matrix, proj_matrix, width, height)
 
         bbox_3d_pixel = get_3d_bbox_projected_to_pixels(entity, view_matrix, proj_matrix, width, height)
         bbox_3d_world = get_3d_bbox_projected_to_world(entity)
