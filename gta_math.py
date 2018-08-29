@@ -440,8 +440,7 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         return False
 
     # the 2d bbox, rectangle
-    entity = {'rot': row['rot'], 'pos': row['pos'], 'model_sizes': row['model_sizes']}  # sending just necessary data, more simple for caching
-    bbox = np.array(calculate_2d_bbox(entity, view_matrix, proj_matrix, width, height))
+    bbox = np.array(calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height))
     bbox[:, 0] *= width
     bbox[:, 1] *= height
     bbox = np.array([[np.ceil(bbox[0, 0]), np.floor(bbox[0, 1])],
@@ -524,18 +523,24 @@ def are_intersecting(l1, l2):
     return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
 
 
-def calculate_2d_bbox_pixels(row, view_matrix, proj_matrix, width, height):
-    bbox_2d = np.array(calculate_2d_bbox(row, view_matrix, proj_matrix, width, height))
+def calculate_2d_bbox_pixels(pos, rot, model_sizes, view_matrix, proj_matrix, width, height):
+    bbox_2d = np.array(calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height))
     bbox_2d[:, 0] *= width
     bbox_2d[:, 1] *= height
     return bbox_2d
 
 
-@fnc.memoize
-def calculate_2d_bbox(row, view_matrix, proj_matrix, width, height):
-    pos = np.array(row['pos'])
-    rot = np.array(row['rot'])
-    model_sizes = np.array(row['model_sizes'])
+# @fnc.memoize    # DO NOT use the datamatrix memoize function, it is not threadsafe
+def calculate_2d_bbox_cached(pos, rot, model_sizes, view_matrix, proj_matrix, width, height):
+    proj_matrix = _pickle.loads(proj_matrix)
+    view_matrix = _pickle.loads(view_matrix)
+    return calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height)
+
+
+def calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height):
+    pos = np.array(pos)
+    rot = np.array(rot)
+    model_sizes = np.array(model_sizes)
     points_3dbbox = get_model_3dbbox(model_sizes)
     # calculating model_coords_to_ndc, so we have both ndc and viewed points
     points_3dbbox_homo = np.array([points_3dbbox[:, 0],

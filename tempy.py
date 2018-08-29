@@ -66,7 +66,7 @@ def draw3dbboxes(directory, base_name):
     plt.imshow(rgb)
 
     for row in visible_cars:
-        row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
+        row['bbox_calc'] = calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height)
         is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height)
         # position in world coords
         # print(row)
@@ -170,7 +170,7 @@ def draw_car_pixels(in_directory, out_directory, base_name):
 
     id = 1
     for row in visible_cars:
-        row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
+        row['bbox_calc'] = calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height)
         # position in world coords
         pos = np.array(row['pos'])
         rot = np.array(row['rot'])
@@ -180,7 +180,7 @@ def draw_car_pixels(in_directory, out_directory, base_name):
 
         # 3D bounding box
         # projecting cuboid to 2d
-        bbox_3d = model_coords_to_world(pos, rot, points_3dbbox, view_matrix, proj_matrix, width, height)
+        bbox_3d = model_coords_to_world(pos, rot, points_3dbbox, view_matrix, proj_matrix)
         # for i, point in enumerate(points_3dbbox):
         #     # point += pos
         #     bbox_3d[i, :] = model_coords_to_world(pos, rot, point, view_matrix, proj_matrix, width, height)
@@ -441,7 +441,7 @@ def try_one_car_3dbboxes(directory, base_name):
     visible_cars = [e for e in entities if
                     e['class'] != 'Trains' and is_entity_in_image(depth, stencil, e, view_matrix, proj_matrix, width, height)]
 
-    calculate_2d_bbox(visible_cars[1], view_matrix, proj_matrix, width, height)
+    calculate_2d_bbox(visible_cars[1]['pos'], visible_cars[1]['rot'], visible_cars[1]['model_sizes'], view_matrix, proj_matrix, width, height)
 
 
 def create_rot_matrix(rot):

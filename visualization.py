@@ -234,7 +234,7 @@ def draw3dbboxes_pillow(rgb, depth, stencil, data):
 
 
 def calculate_one_entity_bbox(row, view_matrix, proj_matrix, width, height):
-    row['bbox_calc'] = calculate_2d_bbox(row, view_matrix, proj_matrix, width, height)
+    row['bbox_calc'] = calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height)
     pos = np.array(row['pos'])
 
     bbox = np.array(row['bbox_calc'])
