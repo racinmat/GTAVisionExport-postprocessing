@@ -635,15 +635,14 @@ def calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, he
                     ndc_y, ndc_x = pixel_to_ndc((y, x), (height, width))
                     bbox_2d_points_ndc = np.vstack((bbox_2d_points_ndc, [ndc_x, ndc_y]))
 
-                    # because of NDC, this 2d bbox extraction looks so weird
-                    bbox_2d_points_ndc[:,
-                    1] *= -1  # revert the Y axis in NDC (range [-1,1]) so it corresponds to the pixels axes
-                    bbox_2d_ndc = np.array([
-                        [bbox_2d_points_ndc[:, 0].max(), bbox_2d_points_ndc[:, 1].max()],
-                        [bbox_2d_points_ndc[:, 0].min(), bbox_2d_points_ndc[:, 1].min()],
-                    ])
-                    # rescale from [-1, 1] to [0, 1]
-                    bbox_2d = (bbox_2d_ndc / 2) + 0.5
+    # because of NDC, this 2d bbox extraction looks so weird
+    bbox_2d_points_ndc[:, 1] *= -1  # revert the Y axis in NDC (range [-1,1]) so it corresponds to the pixels axes
+    bbox_2d_ndc = np.array([
+        [bbox_2d_points_ndc[:, 0].max(), bbox_2d_points_ndc[:, 1].max()],
+        [bbox_2d_points_ndc[:, 0].min(), bbox_2d_points_ndc[:, 1].min()],
+    ])
+    # rescale from [-1, 1] to [0, 1]
+    bbox_2d = (bbox_2d_ndc / 2) + 0.5
     return bbox_2d.tolist()
 
 
