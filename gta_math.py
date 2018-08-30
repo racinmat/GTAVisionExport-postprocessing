@@ -404,6 +404,40 @@ def are_behind_plane(x0, x1, x2, x, y, z):
     return n[0] * (x - x0[0]) + n[1] * (y - x0[1]) + n[2] * (z - x0[2]) > 0
 
 
+def get_pixels_inside_3d_bbox_mask(bbox, car_mask, depth, bbox_3d_world_homo, proj_matrix, view_matrix, width, height):
+    # instance segmentation, for vehicle stencil id pixels, checking if depth pixels are inside 3d bbox in world coordinates
+    # and comparing number of these depth pixels in and outside 3d bbox to determine the visibility
+    cc, rr = get_pixels_meshgrid(width, height)
+    # _pickle is C implementation of pickle, very fast. This is the best and fastest way to serialize and deserialize numpy arrays. Thus great for caching
+    pixel_3d = get_pixels_3d_cached(_pickle.dumps(depth), _pickle.dumps(proj_matrix), _pickle.dumps(view_matrix), width,
+                                    height)
+    # pixel_3d = get_pixels_3d(depth, proj_matrix, view_matrix, width, height)      # non cached version, slower
+
+    bbox_3d_world_homo /= bbox_3d_world_homo[3, :]
+    bbox_3d_world = bbox_3d_world_homo[0:3, :].T
+
+    # points inside the 2D bbox with car mask on
+    car_pixels_mask = (car_mask == True) & (cc >= bbox[1, 0]) & (cc <= bbox[0, 0]) & (rr >= bbox[1, 1]) & (
+                rr <= bbox[0, 1])
+    # must be == True, because this operator is overloaded to compare every element with True value
+    idxs = np.where(car_pixels_mask)
+
+    # 3D coordinates of pixels in idxs
+    x = pixel_3d[0, ::].squeeze()[idxs]
+    y = pixel_3d[1, ::].squeeze()[idxs]
+    z = pixel_3d[2, ::].squeeze()[idxs]
+
+    # test if the points lie inside 3D bbox
+    in1 = are_behind_plane(bbox_3d_world[3, :], bbox_3d_world[2, :], bbox_3d_world[7, :], x, y, z)
+    in2 = are_behind_plane(bbox_3d_world[1, :], bbox_3d_world[5, :], bbox_3d_world[0, :], x, y, z)
+    in3 = are_behind_plane(bbox_3d_world[6, :], bbox_3d_world[2, :], bbox_3d_world[4, :], x, y, z)
+    in4 = are_behind_plane(bbox_3d_world[3, :], bbox_3d_world[7, :], bbox_3d_world[1, :], x, y, z)
+    in5 = are_behind_plane(bbox_3d_world[7, :], bbox_3d_world[6, :], bbox_3d_world[5, :], x, y, z)
+    in6 = are_behind_plane(bbox_3d_world[0, :], bbox_3d_world[2, :], bbox_3d_world[1, :], x, y, z)
+    is_inside = in1 & in2 & in3 & in4 & in5 & in6
+    return is_inside
+
+
 def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, height,
                        vehicle_stencil_ratio=0.4, depth_in_bbox_ratio=0.5):
     # at least 40% of pixels have to be vehicle stencil
@@ -440,7 +474,8 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         return False
 
     # the 2d bbox, rectangle
-    bbox = np.array(calculate_2d_bbox_cached(tuple(row['pos']), tuple(row['rot']), tuple(row['model_sizes']), _pickle.dumps(view_matrix), _pickle.dumps(proj_matrix), width, height))
+    bbox = np.array(calculate_2d_bbox_cached(tuple(row['pos']), tuple(row['rot']), tuple(row['model_sizes']),
+                                             _pickle.dumps(view_matrix), _pickle.dumps(proj_matrix), width, height))
     # bbox = np.array(calculate_2d_bbox(row['pos'], row['rot'], row['model_sizes'], view_matrix, proj_matrix, width, height))
     bbox[:, 0] *= width
     bbox[:, 1] *= height
@@ -464,35 +499,8 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
         # so I can not evaluate it and thus I say it is ok, since this test is only for excluding some cars
         return True
 
-    # instance segmentation, for vehicle stencil id pixels, checking if depth pixels are inside 3d bbox in world coordinates
-    # and comparing number of these depth pixels in and outside 3d bbox to determine the visibility
-    cc, rr = get_pixels_meshgrid(width, height)
-    # _pickle is C implementation of pickle, very fast. This is the best and fastest way to serialize and deserialize numpy arrays. Thus great for caching
-    pixel_3d = get_pixels_3d_cached(_pickle.dumps(depth), _pickle.dumps(proj_matrix), _pickle.dumps(view_matrix), width, height)
-    # pixel_3d = get_pixels_3d(depth, proj_matrix, view_matrix, width, height)      # non cached version, slower
-
-    bbox_3d_world_homo /= bbox_3d_world_homo[3, :]
-    bbox_3d_world = bbox_3d_world_homo[0:3, :].T
-
-    # points inside the 2D bbox with car mask on
-    idxs = np.where(
-        (car_mask == True) & (cc >= bbox[1, 0]) & (cc <= bbox[0, 0]) & (rr >= bbox[1, 1]) & (rr <= bbox[0, 1]))
-    # must be == True, because this operator is overloaded to compare every element with True value
-
-    # 3D coordinates of pixels in idxs
-    x = pixel_3d[0, ::].squeeze()[idxs]
-    y = pixel_3d[1, ::].squeeze()[idxs]
-    z = pixel_3d[2, ::].squeeze()[idxs]
-
-    # test if the points lie inside 3D bbox
-    in1 = are_behind_plane(bbox_3d_world[3, :], bbox_3d_world[2, :], bbox_3d_world[7, :], x, y, z)
-    in2 = are_behind_plane(bbox_3d_world[1, :], bbox_3d_world[5, :], bbox_3d_world[0, :], x, y, z)
-    in3 = are_behind_plane(bbox_3d_world[6, :], bbox_3d_world[2, :], bbox_3d_world[4, :], x, y, z)
-    in4 = are_behind_plane(bbox_3d_world[3, :], bbox_3d_world[7, :], bbox_3d_world[1, :], x, y, z)
-    in5 = are_behind_plane(bbox_3d_world[7, :], bbox_3d_world[6, :], bbox_3d_world[5, :], x, y, z)
-    in6 = are_behind_plane(bbox_3d_world[0, :], bbox_3d_world[2, :], bbox_3d_world[1, :], x, y, z)
-    is_inside = in1 & in2 & in3 & in4 & in5 & in6
-
+    is_inside = get_pixels_inside_3d_bbox_mask(bbox, car_mask, depth, bbox_3d_world_homo, proj_matrix, view_matrix,
+                                               width, height)
     return is_inside.mean() >= depth_in_bbox_ratio
 
 
@@ -515,6 +523,8 @@ def is_entity_in_image(depth, stencil, row, view_matrix, proj_matrix, width, hei
 
 def ccw(a, b, c):
     return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
+
+
 # Return true if line segments AB and CD intersect
 
 
@@ -524,8 +534,27 @@ def are_intersecting(l1, l2):
     return ccw(a, c, d) != ccw(b, c, d) and ccw(a, b, c) != ccw(a, b, d)
 
 
+# taken from https://stackoverflow.com/questions/20677795/how-do-i-compute-the-intersection-point-of-two-lines-in-python
+def line_intersection(line1, line2):
+    xdiff = (line1[0][0] - line1[1][0], line2[0][0] - line2[1][0])
+    ydiff = (line1[0][1] - line1[1][1], line2[0][1] - line2[1][1])  # Typo was here
+
+    def det(a, b):
+        return a[0] * b[1] - a[1] * b[0]
+
+    div = det(xdiff, ydiff)
+    if div == 0:
+        raise Exception('lines do not intersect')
+
+    d = (det(*line1), det(*line2))
+    x = det(d, xdiff) / div
+    y = det(d, ydiff) / div
+    return x, y
+
+
 def calculate_2d_bbox_pixels(pos, rot, model_sizes, view_matrix, proj_matrix, width, height):
-    bbox_2d = np.array(calculate_2d_bbox_cached(tuple(pos), tuple(rot), tuple(model_sizes), _pickle.dumps(view_matrix), _pickle.dumps(proj_matrix), width, height))
+    bbox_2d = np.array(calculate_2d_bbox_cached(tuple(pos), tuple(rot), tuple(model_sizes), _pickle.dumps(view_matrix),
+                                                _pickle.dumps(proj_matrix), width, height))
     # bbox_2d = np.array(calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, height))
     bbox_2d[:, 0] *= width
     bbox_2d[:, 1] *= height
@@ -592,20 +621,29 @@ def calculate_2d_bbox(pos, rot, model_sizes, view_matrix, proj_matrix, width, he
         for line in lines:
             for border in borders:
                 if are_intersecting(line, border):
-                    l1 = Line(Point(line[0][0], line[0][1]), Point(line[1][0], line[1][1]))
-                    l2 = Line(Point(border[0][0], border[0][1]), Point(border[1][0], border[1][1]))
-                    x, y = np.array(next(iter(l1.intersect(l2))), dtype=np.float32)
+                    # this is implementation using sympy.
+                    # HOWEVER SYMPY IS NOT THREAD-SAFE, so it breaks when used for multi-threaded batch processing
+                    # l1 = Line(Point(line[0][0], line[0][1]), Point(line[1][0], line[1][1]))
+                    # l2 = Line(Point(border[0][0], border[0][1]), Point(border[1][0], border[1][1]))
+                    # x, y = np.array(next(iter(l1.intersect(l2))), dtype=np.float32)
+
+                    # this does not use sympy and is fully threadsafe
+                    x, y = line_intersection(
+                        ((line[0][0], line[0][1]), (line[1][0], line[1][1])),
+                        ((border[0][0], border[0][1]), (border[1][0], border[1][1]))
+                    )
                     ndc_y, ndc_x = pixel_to_ndc((y, x), (height, width))
                     bbox_2d_points_ndc = np.vstack((bbox_2d_points_ndc, [ndc_x, ndc_y]))
 
-    # because of NDC, this 2d bbox extraction looks so weird
-    bbox_2d_points_ndc[:, 1] *= -1  # revert the Y axis in NDC (range [-1,1]) so it corresponds to the pixels axes
-    bbox_2d_ndc = np.array([
-        [bbox_2d_points_ndc[:, 0].max(), bbox_2d_points_ndc[:, 1].max()],
-        [bbox_2d_points_ndc[:, 0].min(), bbox_2d_points_ndc[:, 1].min()],
-    ])
-    # rescale from [-1, 1] to [0, 1]
-    bbox_2d = (bbox_2d_ndc / 2) + 0.5
+                    # because of NDC, this 2d bbox extraction looks so weird
+                    bbox_2d_points_ndc[:,
+                    1] *= -1  # revert the Y axis in NDC (range [-1,1]) so it corresponds to the pixels axes
+                    bbox_2d_ndc = np.array([
+                        [bbox_2d_points_ndc[:, 0].max(), bbox_2d_points_ndc[:, 1].max()],
+                        [bbox_2d_points_ndc[:, 0].min(), bbox_2d_points_ndc[:, 1].min()],
+                    ])
+                    # rescale from [-1, 1] to [0, 1]
+                    bbox_2d = (bbox_2d_ndc / 2) + 0.5
     return bbox_2d.tolist()
 
 
@@ -734,7 +772,6 @@ def get_rectangles_overlap(r1, r2):
 
 def get_rectangle_volume(r):
     return (r[0, 0] - r[1, 0]) * (r[0, 1] - r[1, 1])
-
 
 # this is the joblib Cache, can cache even mutable, non-hashable objects, but does not use the decorator
 # https://joblib.readthedocs.io/en/latest/auto_examples/memory_basic_usage.html
