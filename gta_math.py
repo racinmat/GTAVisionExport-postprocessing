@@ -1,11 +1,8 @@
 from functools import lru_cache
-from joblib import Memory
 import numpy as np
 from math import tan, atan, radians, degrees, cos, sin, atan2
 import time
-from sympy import Line, Point
 import _pickle
-from datamatrix import functional as fnc
 
 # threshold for persisting images,
 THRESHOLD = 1000
@@ -19,7 +16,7 @@ def pixel_to_ndc(pixel, size):
     s_y, s_x = size
     s_y -= 1  # so 1 is being mapped into (n-1)th pixel
     s_x -= 1  # so 1 is being mapped into (n-1)th pixel
-    return (((- 2 / s_y) * p_y + 1), (2 / s_x) * p_x - 1)
+    return (- 2 / s_y) * p_y + 1, (2 / s_x) * p_x - 1
 
 
 def pixels_to_ndcs(pixels, size):
@@ -783,4 +780,3 @@ def get_rectangle_volume(r):
 # the get_pixels_3d takes 48MB to allocate. So around 300MB cache size should not be too much nor too few
 
 # todo: začít sbírat i polohu a rotaci auta
-# todo: transfer do kitti

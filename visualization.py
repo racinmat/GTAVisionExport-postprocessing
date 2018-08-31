@@ -407,6 +407,32 @@ def are_buffers_same_as_previous(res):
     return (depth == prev_depth).all() or (stencil == prev_stencil).all()
 
 
+def get_cameras_for_run(run_id):
+    # because sometimes I use two cameras heading same direction, pair (position, rotation) is unique identifier
+    # camera_fov = 0 happens when some data are corrupted, so this is simple sanity check, but it should happend really rarely
+    conn = get_connection_pooled()
+    cur = conn.cursor()
+    cur.execute("""SELECT DISTINCT \
+          ARRAY[st_x(camera_relative_rotation), st_y(camera_relative_rotation), st_z(camera_relative_rotation)] as camera_relative_rotation,
+          ARRAY[st_x(camera_relative_position), st_y(camera_relative_position), st_z(camera_relative_position)] as camera_relative_position
+          FROM snapshots \
+          WHERE run_id = {} AND camera_fov != 0 \
+          ORDER BY camera_relative_position, camera_relative_rotation ASC \
+        """.format(run_id))
+
+    cam_configurations = []
+    camera_names = {}
+    for i, row in enumerate(cur):
+        # print(row['camera_relative_rotation'])
+        # print(row['camera_relative_position'])
+        cam_configurations.append((row['camera_relative_rotation'], row['camera_relative_position']))
+        camera_name = camera_to_string(row)
+        camera_names[camera_name] = str(i)
+        # print(camera_name, ': ', i)
+
+    return camera_names, cam_configurations
+
+
 def camera_to_string(res):
     return 'camera_{}__{}'.format(
         '_'.join(['{:0.2f}'.format(i) for i in res['camera_relative_position']]),
