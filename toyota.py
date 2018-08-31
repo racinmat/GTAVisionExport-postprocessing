@@ -285,8 +285,6 @@ def is_side_visible(points, camera_position):
     but that is handled in entities filtering, where only visible entities are passed into this function.
     Decides whether the 3d bounding box side is visible or not.
     Based on dot product of camera (camera direction vector) and side plane normal.
-    vzít paprsek z kamery do středu čtverce a dot product s normálou plochy toho čtverce
-    to určí, zda by to bylo vidět na kameře co má záběr vše, pak musím otestovatasi přes NDC, zda je ve viditelnén jehlanu kamery
 
     :param points: points in world coordinates, 3D
     :param camera_position: in world coordinates, 3D
@@ -346,6 +344,28 @@ def json_to_toyota_format(data, depth, stencil):
         46 5 0 0    0 4600 1800 1550    -3108.6 6248.44 -49.552    7.00659     4868.65    47.0695    168.146 126.213 524.949 294.797    1 0 0 1    436.697 259.641  527.039 264.411  170.04 283.114  225.506 313.484  436.017 174.593  526.912 166.347  166.825 150.469  220.872 102.884
         62 5 0.233848 0.204334    5 8850 2500 4150    -11129.6 4460.82 8.26664    -0.0767804     11305.8    80.1913    -66.2909 103.905 257.425 255.671    1 0 0 1    220.564 244.871  258.869 246.984  -44.0267 253.452  -63.0191 258.145  218.026 129.744  256.144 111.575  -47.8095 127.142  -67.7169 103.399
         943 5 0 0    8 13600 2500 3600    1307.36 34695.9 -71.2121    9.00267     32176.8    6.67362    637.821 184.629 688.925 234.98    1 0 1 0    663.667 232.386  688.794 232.668  636.993 235.527  675.197 235.983  663.985 196.208  689.179 196.268  637.372 180.515  675.736 180.179
+
+
+        input format (dictionary):
+        {
+            view_matrix,
+            proj_matrix,
+            camera_relative_rotation,
+            camera_relative_position,
+            width,
+            height
+            camera_rot,
+            camera_pos,
+            entities <- cars, list of dictionaries {
+                type,
+                class,
+                handle,
+                model_sizes,
+                pos,
+                rot
+            }
+
+        }
     """
     lines = []
 
@@ -361,7 +381,6 @@ def json_to_toyota_format(data, depth, stencil):
 
     visible_vehicles = [e for e in data['entities'] if
                         e['type'] == 'car' and
-                        e['class'] != 'Trains' and
                         is_entity_in_image(depth, stencil, e, view_matrix, proj_matrix, width, height,
                                            vehicle_stencil_ratio=0.3, depth_in_bbox_ratio=0.5)]
 
@@ -469,6 +488,14 @@ def json_to_toyota_calibration(data):
     rotační matice kamery vůči autu
     translace kamery (umístění) vůči autu
     rozlišení obrázku
+
+    input format (dictionary):
+    {
+        camera_relative_rotation,
+        camera_relative_position,
+        width,
+        height
+    }
     """
 
     def matrix_to_string(m):

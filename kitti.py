@@ -202,7 +202,11 @@ def try_image_to_kitti():
 
     # saving new images
     Image.fromarray(rgb).convert(mode="RGB").save(os.path.join('kitti-format', '{}.jpg'.format(base_name)))
-    tifffile.imsave(os.path.join('kitti-format', '{}-depth.tiff'.format(base_name)), depth, compress='lzma')
+    tifffile.imsave(os.path.join('kitti-format', '{}-depth-orig.tiff'.format(base_name)), depth)
+    tifffile.imsave(os.path.join('kitti-format', '{}-depth-lzma.tiff'.format(base_name)), depth, compress='lzma')
+    tifffile.imsave(os.path.join('kitti-format', '{}-depth-zip-5.tiff'.format(base_name)), depth, compress=5)
+    tifffile.imsave(os.path.join('kitti-format', '{}-depth-zip-9.tiff'.format(base_name)), depth, compress=9)
+    tifffile.imsave(os.path.join('kitti-format', '{}-depth-zip-zstd.tiff'.format(base_name)), depth, compress='zstd')
     Image.fromarray(stencil).save(os.path.join('kitti-format', '{}-stencil.jpg'.format(base_name)))
     with open(os.path.join('kitti-format', '{}.json'.format(base_name)), 'w+') as f:
         json.dump(data, f)
@@ -223,4 +227,3 @@ def try_image_to_kitti():
 if __name__ == '__main__':
     # load_kitti_calib_data('')
     try_image_to_kitti()
-
