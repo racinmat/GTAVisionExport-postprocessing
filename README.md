@@ -1,3 +1,15 @@
+# Documentation:
+
+This is one of 3 repositories for Matěj Račinský's master thesis, available [here](https://dspace.cvut.cz/handle/10467/76430).
+
+There are 3 repositories:
+- GTAVisionExport
+    - the actual GTA mod which modifies the game
+- GTAVisionExport_Server
+    - repo with some scripts to control the data gathering and preview gathered images
+- GTAVisionExport_postprocessing
+    - whole postprocessing, most of interesting things is here
+
 ## Starting with the generate_bboxes postprocessing
 
 Bunch of scripts for some simple post-processing of [GTAVisionExport](https://github.com/umautobots/GTAVisionExport) repo.
@@ -23,15 +35,6 @@ It stores calculated stencils as zipped numpy array, for loading, see `show_driv
 Note: pausing game has significant impact on timeofday flow, it looks like during classic 4camera data gathering, timeofday changing is 10 times slower.
 
 
-# Documentation:
-
-There are 3 repositories:
-- GTAVisionExport
-    - the actual GTA mod which modifies the game
-- GTAVisionExport_Server
-    - repo with some scripts to control the data gathering and preview gathered images
-- GTAVisionExport_postprocessing
-    - whole postprocessing, most of interesting things is here
 
 ## Notes about offroad:
 
